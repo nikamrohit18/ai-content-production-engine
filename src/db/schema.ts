@@ -200,7 +200,10 @@ export const scripts = pgTable("scripts", {
   isHumanEdited: boolean("is_human_edited").notNull().default(false),
   status: scriptStatusEnum("status").notNull().default("draft"),
   ...timestamps,
-}, (t) => [index("scripts_topic_idx").on(t.topicId)]);
+}, (t) => [
+  index("scripts_topic_idx").on(t.topicId),
+  uniqueIndex("scripts_topic_version_idx").on(t.topicId, t.version),
+]);
 
 export const factChecks = pgTable("fact_checks", {
   id: id(),
@@ -215,6 +218,20 @@ export const factChecks = pgTable("fact_checks", {
   reviewerOverride: jsonb("reviewer_override").$type<{ verdict: string; justification: string } | null>(),
   ...timestamps,
 }, (t) => [index("fact_checks_script_idx").on(t.scriptId)]);
+
+export const researchBriefs = pgTable("research_briefs", {
+  id: id(),
+  topicId: uuid("topic_id").notNull().references(() => topics.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  sources: jsonb("sources")
+    .$type<Array<{ sourceUrl: string; sourceName: string; excerpt: string }>>()
+    .notNull()
+    .default([]),
+  disputedClaims: jsonb("disputed_claims").$type<string[]>().notNull().default([]),
+  modelUsed: varchar("model_used", { length: 128 }).notNull(),
+  generationCostUsd: numeric("generation_cost_usd", { precision: 10, scale: 4 }).default("0"),
+  ...timestamps,
+}, (t) => [index("research_briefs_topic_idx").on(t.topicId)]);
 
 export const assets = pgTable("assets", {
   id: id(),
