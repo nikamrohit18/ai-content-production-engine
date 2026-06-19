@@ -15,6 +15,13 @@
       "when": 1781844639577,
       "tag": "0001_material_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781854649007,
+      "tag": "0002_gray_havok",
+      "breakpoints": true
     }
   ]
 }

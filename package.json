@@ -17,6 +17,7 @@
     "@ai-sdk/gateway": "^3.0.133",
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "^2.4.1",
+    "@vercel/config": "^0.5.3",
     "@workflow/ai": "^4.1.2",
     "@workflow/core": "^4.5.0",
     "@workflow/next": "^4.0.11",

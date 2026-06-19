@@ -326,6 +326,24 @@ export const costLedger = pgTable("cost_ledger", {
   index("cost_ledger_provider_occurred_idx").on(t.provider, t.occurredAt),
 ]);
 
+export const trendSignals = pgTable("trend_signals", {
+  id: id(),
+  channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
+  query: varchar("query", { length: 256 }).notNull(),
+  videoId: varchar("video_id", { length: 32 }).notNull(),
+  videoTitle: varchar("video_title", { length: 512 }).notNull(),
+  videoChannelTitle: varchar("video_channel_title", { length: 256 }),
+  viewCount: integer("view_count"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  promotedTopicId: uuid("promoted_topic_id").references(() => topics.id, { onDelete: "set null" }),
+  rawMetadata: jsonb("raw_metadata").$type<Record<string, unknown>>().default({}),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("trend_signals_channel_video_idx").on(t.channelId, t.videoId),
+  index("trend_signals_channel_idx").on(t.channelId),
+]);
+
 export const youtubeCredentials = pgTable("youtube_credentials", {
   id: id(),
   channelId: uuid("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
