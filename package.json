@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.133",
     "@base-ui/react": "^1.6.0",
+    "@clerk/nextjs": "^7.5.6",
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "^2.4.1",
     "@vercel/config": "^0.5.3",

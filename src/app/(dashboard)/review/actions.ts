@@ -3,8 +3,10 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb, schema } from "@/db";
+import { requireAuth } from "@/lib/require-auth";
 
 export async function approveTopic(topicId: string, scriptId: string): Promise<void> {
+  await requireAuth();
   const db = getDb();
 
   const topic = await db.query.topics.findFirst({ where: (t, { eq: eqOp }) => eqOp(t.id, topicId) });
@@ -19,6 +21,7 @@ export async function approveTopic(topicId: string, scriptId: string): Promise<v
 }
 
 export async function rejectTopic(topicId: string, scriptId: string, reviewerNotes: string): Promise<void> {
+  await requireAuth();
   const db = getDb();
 
   const topic = await db.query.topics.findFirst({ where: (t, { eq: eqOp }) => eqOp(t.id, topicId) });

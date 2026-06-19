@@ -2,8 +2,15 @@ import { start } from "workflow/api";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { runTopicPipeline } from "@/workflows/topic-pipeline";
+import { requireAuth } from "@/lib/require-auth";
 
 export async function POST(request: Request) {
+  try {
+    await requireAuth();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { topicId } = await request.json();
   const db = getDb();
 
