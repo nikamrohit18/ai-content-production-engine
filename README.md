@@ -9,6 +9,8 @@ A production-grade, AI-driven pipeline for running faceless YouTube channels at 
 
 The first channel built on this engine is **[Time Excavated](https://www.youtube.com/channel/UCSJSdi3FmUJXF0C1ie_VWaA)** (forgotten history, ancient civilizations, historical mysteries).
 
+The operator dashboard is live at **[ai-content-engine.rohitnikam.tech](https://ai-content-engine.rohitnikam.tech)** — authenticated (Clerk), single-operator access only, not a public demo.
+
 ## Pipeline
 
 ```mermaid
@@ -35,6 +37,8 @@ Every stage writes to Postgres (see [`src/db/schema.ts`](src/db/schema.ts)), so 
 | Database | [Neon](https://neon.tech) Postgres via [Drizzle ORM](https://orm.drizzle.team) |
 | Orchestration | [Vercel Workflow DevKit](https://vercel.com/docs/workflow) — durable, resumable pipeline steps |
 | LLM access | [AI SDK v6](https://sdk.vercel.ai) + [AI Gateway](https://vercel.com/docs/ai-gateway) (multi-provider, no vendor lock-in) |
+| Dashboard UI | [shadcn/ui](https://ui.shadcn.com) (Base UI primitives) + Tailwind v4 |
+| Authentication | [Clerk](https://clerk.com), via the Vercel Marketplace — gates the dashboard, single operator |
 | Video rendering | [Remotion](https://www.remotion.dev) |
 | Voiceover | [ElevenLabs](https://elevenlabs.io) |
 | Object storage | [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) |
@@ -46,11 +50,17 @@ Every stage writes to Postgres (see [`src/db/schema.ts`](src/db/schema.ts)), so 
 ```
 src/
 ├── app/
-│   ├── (dashboard)/        # Internal UI: backlog, review, channels, costs, analytics
+│   ├── (dashboard)/        # Operator UI: review, backlog, channels, costs, analytics (Clerk-gated)
+│   ├── sign-in/            # Clerk embedded sign-in (no sign-up route — admin-created users only)
 │   └── api/
 │       ├── cron/           # Scheduled jobs (trend refill, analytics polling)
 │       ├── webhooks/       # Render-complete, YouTube OAuth callback
 │       └── workflows/      # Workflow DevKit entrypoints (start pipeline, resume review)
+├── proxy.ts                # Route gating (Clerk session check) — Next 16's renamed middleware
+├── components/
+│   └── ui/                 # shadcn/ui primitives
+├── lib/
+│   └── require-auth.ts     # Server Action-level auth check (defense in depth alongside proxy.ts)
 ├── config/
 │   ├── channels/           # Per-channel config
 │   └── niches/             # Per-niche config
@@ -63,7 +73,7 @@ src/
 │   ├── compliance/         # Synthetic-media disclosure, licensing checks
 │   ├── cost/                # Cost ledger + budget guardrails
 │   ├── render/              # Render-target dispatch (Vercel Sandbox / Remotion Lambda)
-│   ├── sourcing/             # Trend signal ingestion, asset sourcing
+│   ├── sourcing/             # Trend signal ingestion (YouTube Data API) + asset sourcing
 │   ├── voice/                # TTS generation
 │   └── youtube/              # Upload, OAuth, quota management
 ├── remotion/
@@ -73,7 +83,7 @@ src/
     └── steps/                # Individual durable workflow steps
 ```
 
-> Not every directory above has code yet — this mirrors the planned architecture. Check `src/db/schema.ts` for what's structurally finalized, and the directories under `src/engine` for what's actually implemented.
+> Not every directory above has code yet — this mirrors the planned architecture. Check `src/db/schema.ts` for what's structurally finalized, and the directories under `src/engine` for what's actually implemented. As of now: `engine/ai`, `engine/cost`, and `engine/sourcing` are implemented; `engine/compliance`, `engine/render`, `engine/voice`, and `engine/youtube` are still empty scaffold.
 
 ## Getting started
 
@@ -94,6 +104,8 @@ npm run db:seed           # seed channels, niche templates, starter topic backlo
 npm run dev
 ```
 
+`vercel env pull` also pulls Clerk's Development-instance keys, so local dev is authenticated the same way production is — visiting any dashboard route locally will redirect to `/sign-in` until you log in with an account created via the Clerk dashboard (there's no self-serve sign-up).
+
 ### Available scripts
 
 | Script | Purpose |
@@ -106,6 +118,14 @@ npm run dev
 | `npm run db:migrate` | Apply pending migrations |
 | `npm run db:studio` | Open Drizzle Studio against the linked database |
 | `npm run db:seed` | Idempotently seed channels, niche templates, and the starter topic backlog |
+
+## Authentication
+
+The dashboard has no public sign-up — it's a single-operator internal tool, not a multi-tenant product (yet). [Clerk](https://clerk.com) gates every route via `src/proxy.ts` (Next 16's renamed `middleware.ts`), and every Server Action / mutating route handler also checks `requireAuth()` directly (`src/lib/require-auth.ts`), since Server Actions share their page's route and aren't independently matchable by a proxy config — relying on the proxy alone would leave a gap.
+
+Two Clerk instances exist on the same app: **Development** (test keys, used by Preview deployments and local dev) and **Production** (live keys, custom domain `clerk.ai-content-engine.rohitnikam.tech`, used only by the Production environment). Both have public self-serve sign-up disabled — new users are created manually via the Clerk dashboard.
+
+`/api/cron/*` (checked against `CRON_SECRET`, called server-to-server by Vercel Cron) and `/.well-known/workflow/*` (Workflow DevKit's own internal runtime routes) are excluded from the Clerk gate since neither is browser-driven.
 
 ## CI/CD
 
@@ -140,15 +160,19 @@ Required repository secrets:
 - [x] Data model for the full topic → publish pipeline
 - [x] Database provisioned, migrated, seeded
 - [x] CI/CD pipeline
-- [ ] Research-brief persistence + research agent
-- [ ] Script generation agent
-- [ ] Fact-checking agent
-- [ ] Trend-signal sourcing
+- [x] Research-brief persistence + research agent
+- [x] Script generation agent
+- [x] Fact-checking agent
+- [x] Trend-signal sourcing (YouTube Data API)
+- [x] Dashboard UI (review, backlog, channels, costs, analytics)
+- [x] Authentication (Clerk, single operator) + custom domain
+- [ ] Move research/script/fact-check models off the free-tier model to the production model of choice
 - [ ] Asset sourcing & generation
 - [ ] Remotion render pipeline
 - [ ] YouTube publish + OAuth
-- [ ] Dashboard UI (backlog, review, costs, analytics)
+- [ ] Analytics polling (currently an empty state — no producer until publishing exists)
 - [ ] Second channel (niche TBD)
+- [ ] Multi-tenant auth model (current `requireAuth()` is single-operator only — see code comments in `src/lib/require-auth.ts`)
 
 ## License
 
