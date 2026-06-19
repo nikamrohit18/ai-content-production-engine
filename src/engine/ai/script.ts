@@ -11,13 +11,24 @@ const scriptOutputSchema = z.object({
       narrationText: z.string(),
       visualCue: z.string(),
       estDurationSec: z.number(),
+      imageSearchQuery: z
+        .string()
+        .describe(
+          "A VERY SHORT search query (2-3 words max) for finding an archival photo on Wikimedia Commons — just the core proper-noun entity name (e.g. 'Antikythera mechanism', 'Göbekli Tepe'), never a descriptive phrase. Commons search matches literally on title words, not semantically — extra qualifying words reduce match rate rather than improve it. Never use the clickbait-style topic title or video phrasing.",
+        ),
     }),
   ),
   fullNarrationText: z.string(),
 });
 
 export type ScriptDraft = {
-  beatStructure: Array<{ beatName: string; narrationText: string; visualCue: string; estDurationSec: number }>;
+  beatStructure: Array<{
+    beatName: string;
+    narrationText: string;
+    visualCue: string;
+    estDurationSec: number;
+    imageSearchQuery: string;
+  }>;
   fullNarrationText: string;
   modelUsed: string;
   generationId: string;

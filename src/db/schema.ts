@@ -191,7 +191,16 @@ export const scripts = pgTable("scripts", {
   topicId: uuid("topic_id").notNull().references(() => topics.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
   beatStructure: jsonb("beat_structure")
-    .$type<Array<{ beatName: string; narrationText: string; visualCue: string; estDurationSec: number }>>()
+    .$type<
+      Array<{
+        beatName: string;
+        narrationText: string;
+        visualCue: string;
+        estDurationSec: number;
+        /** Absent on scripts generated before this field was added. */
+        imageSearchQuery?: string;
+      }>
+    >()
     .notNull(),
   fullNarrationText: text("full_narration_text").notNull(),
   wordCount: integer("word_count").notNull(),
