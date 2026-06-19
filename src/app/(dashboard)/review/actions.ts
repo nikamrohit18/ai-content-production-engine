@@ -2,8 +2,10 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { start } from "workflow/api";
 import { getDb, schema } from "@/db";
 import { requireAuth } from "@/lib/require-auth";
+import { runRenderPipeline } from "@/workflows/render-pipeline";
 
 export async function approveTopic(topicId: string, scriptId: string): Promise<void> {
   await requireAuth();
@@ -15,6 +17,8 @@ export async function approveTopic(topicId: string, scriptId: string): Promise<v
 
   await db.update(schema.topics).set({ status: "approved", updatedAt: new Date() }).where(eq(schema.topics.id, topicId));
   await db.update(schema.scripts).set({ status: "approved", updatedAt: new Date() }).where(eq(schema.scripts.id, scriptId));
+
+  await start(runRenderPipeline, [topicId, scriptId]);
 
   revalidatePath("/review");
   revalidatePath("/backlog");

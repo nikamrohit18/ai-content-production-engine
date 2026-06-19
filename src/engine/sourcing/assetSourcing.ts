@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { searchCommonsImages } from "./wikimediaCommons";
 
@@ -30,6 +31,14 @@ export async function sourceImagesForScript(scriptId: string): Promise<SourceIma
 
   const topic = await db.query.topics.findFirst({ where: (t, { eq }) => eq(t.id, script.topicId) });
   if (!topic) throw new Error(`Topic ${script.topicId} not found`);
+
+  // Blob uploads are idempotent (allowOverwrite, deterministic path per beat) —
+  // DB rows need the same property for retries (workflow step retries, or a
+  // manual re-source) to land a clean set rather than duplicating every beat
+  // sourced before whatever caused the retry.
+  await db
+    .delete(schema.assets)
+    .where(and(eq(schema.assets.scriptId, scriptId), eq(schema.assets.assetType, "image_archival")));
 
   let assetsCreated = 0;
   let beatsWithoutMatch = 0;
