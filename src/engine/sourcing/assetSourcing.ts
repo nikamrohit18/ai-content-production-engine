@@ -2,6 +2,7 @@ import { put } from "@vercel/blob";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { searchCommonsImages } from "./wikimediaCommons";
+import { searchInternetArchiveImages } from "./internetArchive";
 
 const USER_AGENT = "ai-content-production-engine/1.0 (https://ai-content-engine.rohitnikam.tech)";
 const DELAY_BETWEEN_BEATS_MS = 1_000;
@@ -17,11 +18,12 @@ function sleep(ms: number) {
 }
 
 /**
- * Sources one archival image per script beat from Wikimedia Commons.
- * A beat without a usable candidate (no search hit, fetch failure) is
- * skipped rather than aborting the whole script — partial asset coverage
- * is recoverable later, a thrown error mid-loop would discard images
- * already uploaded for earlier beats.
+ * Sources one archival image per script beat, preferring Wikimedia Commons
+ * and falling back to Internet Archive for beats Commons has no match for.
+ * A beat without a usable candidate from either source (no search hit,
+ * fetch failure) is skipped rather than aborting the whole script — partial
+ * asset coverage is recoverable later, a thrown error mid-loop would
+ * discard images already uploaded for earlier beats.
  */
 export async function sourceImagesForScript(scriptId: string): Promise<SourceImagesResult> {
   const db = getDb();
@@ -50,20 +52,35 @@ export async function sourceImagesForScript(scriptId: string): Promise<SourceIma
     // fall back to a cruder heuristic so old scripts still get partial coverage.
     const query = beat.imageSearchQuery ?? `${topic.titleWorking} ${beat.visualCue}`.slice(0, 300);
 
-    let candidates = await searchCommonsImages(query, 3).catch(() => []);
-
     // Commons' search matches near-literally on title words rather than
     // ranking semantically — a query with more than ~3 words frequently
     // returns nothing even when the core entity name alone would hit.
     // Retrying with just the leading words recovers most of those misses.
+    // Internet Archive shares the same literal-keyword behavior, so the
+    // same short-query retry applies there too.
     const words = query.split(/\s+/);
-    if (candidates.length === 0 && words.length > 3) {
+    const shortQuery = words.length > 3 ? words.slice(0, 3).join(" ") : null;
+
+    let wikimediaCandidates = await searchCommonsImages(query, 3).catch(() => []);
+    if (wikimediaCandidates.length === 0 && shortQuery) {
       await sleep(DELAY_BETWEEN_BEATS_MS);
-      const shortQuery = words.slice(0, 3).join(" ");
-      candidates = await searchCommonsImages(shortQuery, 3).catch(() => []);
+      wikimediaCandidates = await searchCommonsImages(shortQuery, 3).catch(() => []);
     }
 
-    const candidate = candidates[0];
+    let candidate = wikimediaCandidates[0];
+    let provider: "wikimedia" | "internet_archive" = "wikimedia";
+
+    if (!candidate) {
+      await sleep(DELAY_BETWEEN_BEATS_MS);
+      let iaCandidates = await searchInternetArchiveImages(query, 3).catch(() => []);
+      if (iaCandidates.length === 0 && shortQuery) {
+        await sleep(DELAY_BETWEEN_BEATS_MS);
+        iaCandidates = await searchInternetArchiveImages(shortQuery, 3).catch(() => []);
+      }
+      candidate = iaCandidates[0];
+      provider = "internet_archive";
+    }
+
     if (!candidate) {
       beatsWithoutMatch += 1;
       continue;
@@ -94,7 +111,7 @@ export async function sourceImagesForScript(scriptId: string): Promise<SourceIma
       topicId: topic.id,
       scriptId,
       assetType: "image_archival",
-      source: "wikimedia",
+      source: provider,
       sourceUrl: candidate.pageUrl,
       license: candidate.license,
       blobUrl: blob.url,
