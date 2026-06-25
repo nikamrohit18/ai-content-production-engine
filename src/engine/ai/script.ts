@@ -4,11 +4,29 @@ import { getDb, schema } from "@/db";
 import { renderTemplate } from "./template";
 import { SCRIPT_MODEL } from "./models";
 
+/**
+ * Scripts generated before narrationText's schema description forbade it
+ * can still contain "[Source: ...]"-style citation artifacts or markdown
+ * emphasis asterisks that never made it into fullNarrationText — strip
+ * them so narrationText reliably matches as a substring of the full text
+ * (needed for voiceover timestamp alignment) and so it's clean for on-screen
+ * captions.
+ */
+export function cleanNarrationText(text: string): string {
+  return text.replace(/\s*\[[^\]]*\]/g, "").replace(/\*/g, "").trim();
+}
+
 const scriptOutputSchema = z.object({
   beatStructure: z.array(
     z.object({
       beatName: z.string(),
-      narrationText: z.string(),
+      narrationText: z
+        .string()
+        .describe(
+          "Pure spoken narration only, exactly as it should be read aloud — never include bracketed citations " +
+            "like '[Source: ...]', markdown emphasis asterisks, or any annotation not meant to be spoken. Must " +
+            "appear verbatim as a substring of fullNarrationText, in beat order.",
+        ),
       visualCue: z.string(),
       estDurationSec: z.number(),
       imageSearchQuery: z

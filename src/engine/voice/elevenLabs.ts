@@ -59,3 +59,55 @@ export async function textToSpeech(voiceId: string, text: string, modelId = DEFA
   if (!res.ok) throw new Error(`ElevenLabs text-to-speech failed (${res.status}): ${await res.text()}`);
   return res.arrayBuffer();
 }
+
+export type TimestampedSpeech = {
+  audioBytes: ArrayBuffer;
+  characters: string[];
+  startTimes: number[];
+  endTimes: number[];
+};
+
+type WithTimestampsResponse = {
+  audio_base64: string;
+  alignment?: {
+    characters: string[];
+    character_start_times_seconds: number[];
+    character_end_times_seconds: number[];
+  };
+};
+
+/**
+ * Used instead of plain textToSpeech whenever the caller needs to know
+ * exactly when a substring of `text` is spoken (e.g. syncing video beats to
+ * one continuous narration track) — character-level alignment can't be
+ * derived after the fact from audio alone without a separate forced-aligner.
+ */
+export async function textToSpeechWithTimestamps(
+  voiceId: string,
+  text: string,
+  modelId = DEFAULT_MODEL_ID,
+): Promise<TimestampedSpeech> {
+  const res = await fetch(`${ELEVENLABS_API_BASE}/v1/text-to-speech/${voiceId}/with-timestamps`, {
+    method: "POST",
+    headers: { "xi-api-key": apiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ text, model_id: modelId }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`ElevenLabs text-to-speech with-timestamps failed (${res.status}): ${await res.text()}`);
+
+  const data: WithTimestampsResponse = await res.json();
+  if (!data.alignment) throw new Error("ElevenLabs with-timestamps response is missing alignment data");
+
+  // Buffer.from(base64) may return a view into Node's shared pool, not a
+  // dedicated ArrayBuffer — slice to the exact byte range so callers get
+  // only this audio's bytes.
+  const buf = Buffer.from(data.audio_base64, "base64");
+  const audioBytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+
+  return {
+    audioBytes,
+    characters: data.alignment.characters,
+    startTimes: data.alignment.character_start_times_seconds,
+    endTimes: data.alignment.character_end_times_seconds,
+  };
+}
