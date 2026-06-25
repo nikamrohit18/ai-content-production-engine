@@ -14,6 +14,9 @@ async function seedHistoryChannel() {
       youtubeChannelId: "UCSJSdi3FmUJXF0C1ie_VWaA",
       brandVoiceConfig: {
         tone: "curious, cinematic, measured authority",
+        // ElevenLabs premade voice "Brian" — chosen by ear against other premade
+        // and Voice Library candidates, see project memory for the comparison.
+        voiceId: "nPczCjzI2devNBz1zQrb",
         audience: "USA, 25-54, history/documentary viewers",
         framingRules: [
           "Avoid nationalistic 'only X people knew this' framing for non-US-origin topics (e.g. ancient India, lost civilizations) — it alienates a US audience and reads as clickbait.",
