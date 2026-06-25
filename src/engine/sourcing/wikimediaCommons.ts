@@ -4,8 +4,11 @@ const MIN_USABLE_WIDTH = 800;
 // Commons indexes scanned-book/document formats (e.g. image/vnd.djvu) under
 // the "image/" mime prefix too, even though they're not usable as a single
 // B-roll photo — an allowlist of actual raster photo formats is safer here
-// than blocking known-bad ones individually.
-const USABLE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/tiff"]);
+// than blocking known-bad ones individually. TIFF is deliberately excluded
+// despite being a real raster format: no browser renders it in <img>, and
+// Commons' TIFF scans run 50-100+ MB, useless for a dashboard reference
+// image or a quick recreate/enhance pass.
+const USABLE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /**
  * Wikimedia requires a descriptive User-Agent identifying the app and a

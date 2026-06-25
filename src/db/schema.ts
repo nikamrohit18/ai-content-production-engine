@@ -199,11 +199,17 @@ export const scripts = pgTable("scripts", {
         estDurationSec: number;
         /** Absent on scripts generated before this field was added. */
         imageSearchQuery?: string;
+        /** Absent on scripts generated before the production-package pivot. */
+        imageGenPrompt?: string;
+        /** Absent on scripts generated before the production-package pivot; optional even on new ones. */
+        videoGenPrompt?: string;
       }>
     >()
     .notNull(),
   fullNarrationText: text("full_narration_text").notNull(),
   wordCount: integer("word_count").notNull(),
+  /** Absent on scripts generated before the production-package pivot (2026-06-25). */
+  thumbnailPrompts: jsonb("thumbnail_prompts").$type<Array<{ concept: string; textOverlay: string }>>(),
   modelUsed: varchar("model_used", { length: 128 }).notNull(),
   generationCostUsd: numeric("generation_cost_usd", { precision: 10, scale: 4 }).default("0"),
   isHumanEdited: boolean("is_human_edited").notNull().default(false),

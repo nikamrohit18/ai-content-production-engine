@@ -34,9 +34,33 @@ const scriptOutputSchema = z.object({
         .describe(
           "A VERY SHORT search query (2-3 words max) for finding an archival photo on Wikimedia Commons — just the core proper-noun entity name (e.g. 'Antikythera mechanism', 'Göbekli Tepe'), never a descriptive phrase. Commons search matches literally on title words, not semantically — extra qualifying words reduce match rate rather than improve it. Never use the clickbait-style topic title or video phrasing.",
         ),
+      imageGenPrompt: z
+        .string()
+        .describe(
+          "A ready-to-paste prompt for an AI image generator (Midjourney/Nano Banana/etc.) depicting THIS beat's narration, not a search query. Describe the specific scene, subject, setting, lighting, and camera framing in concrete visual detail. Match the channel's desaturated cinematic documentary look (muted color grade, slow/measured mood, archival-photo realism rather than fantasy or cartoon style) unless the beat itself calls for a clear diagram/infographic instead. Must depict this beat's specific content, not a generic restatement of the topic.",
+        ),
+      videoGenPrompt: z
+        .string()
+        .optional()
+        .describe(
+          "Optional — only include for beats where subtle motion would meaningfully add to the scene (e.g. dust drifting, slow camera dolly/pan, flickering torchlight). A prompt for an AI video generator describing the motion/camera movement specifically, building on imageGenPrompt's scene rather than re-describing it from scratch. Omit entirely for beats that are fine as a still image.",
+        ),
     }),
   ),
   fullNarrationText: z.string(),
+  thumbnailPrompts: z
+    .array(
+      z.object({
+        concept: z
+          .string()
+          .describe(
+            "A ready-to-paste prompt for an AI image generator depicting a single, high-contrast, attention-grabbing thumbnail concept for this whole video — built around its central hook/mystery, not a recap of the plot. Concrete visual subject, composition, lighting.",
+          ),
+        textOverlay: z.string().describe("Short punchy overlay text for the thumbnail, 3-6 words max, in the video's own hook language — not a generic label."),
+      }),
+    )
+    .length(3)
+    .describe("Exactly 3 distinct thumbnail concepts for this video, each a different visual angle on the hook."),
 });
 
 export type ScriptDraft = {
@@ -46,8 +70,11 @@ export type ScriptDraft = {
     visualCue: string;
     estDurationSec: number;
     imageSearchQuery: string;
+    imageGenPrompt: string;
+    videoGenPrompt?: string;
   }>;
   fullNarrationText: string;
+  thumbnailPrompts: Array<{ concept: string; textOverlay: string }>;
   modelUsed: string;
   generationId: string;
 };
@@ -110,6 +137,7 @@ export async function saveScript(
       version: (latest?.version ?? 0) + 1,
       beatStructure: draft.beatStructure,
       fullNarrationText: draft.fullNarrationText,
+      thumbnailPrompts: draft.thumbnailPrompts,
       wordCount,
       modelUsed: draft.modelUsed,
       generationCostUsd: String(costUsd),

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { getDb } from "@/db";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RunPipelineButton } from "./backlog-actions";
@@ -16,6 +18,18 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   published: "secondary",
   archived: "outline",
 };
+
+// A script (and usually sourced assets/voiceover) exists for any topic past
+// these earlier in-flight statuses — that's when a production package is
+// actually viewable, not just a status label.
+const HAS_SCRIPT_STATUSES = new Set([
+  "awaiting_review",
+  "approved",
+  "in_production",
+  "published",
+  "rejected",
+  "archived",
+]);
 
 export default async function BacklogPage() {
   const db = getDb();
@@ -79,6 +93,11 @@ export default async function BacklogPage() {
                   <TableCell className="text-right">
                     {topic.status === "backlog" && (
                       <RunPipelineButton topicId={topic.id} topicTitle={topic.titleWorking} />
+                    )}
+                    {HAS_SCRIPT_STATUSES.has(topic.status) && (
+                      <Link href={`/production/${topic.id}`} className={buttonVariants({ size: "sm", variant: "outline" })}>
+                        View package
+                      </Link>
                     )}
                   </TableCell>
                 </TableRow>

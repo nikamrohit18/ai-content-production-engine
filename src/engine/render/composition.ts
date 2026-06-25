@@ -5,7 +5,7 @@ import type { DocumentaryVideoProps } from "@/remotion/compositions/DocumentaryV
 
 export const REMOTION_COMPOSITION_ID = "DocumentaryVideo";
 const FPS = 30;
-const DIMENSIONS = { short: { width: 1080, height: 1920 }, longform: { width: 1920, height: 1080 } } as const;
+export const DIMENSIONS = { short: { width: 1080, height: 1920 }, longform: { width: 1920, height: 1080 } } as const;
 
 export type CompositionPlan = {
   remotionCompositionId: string;
