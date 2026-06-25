@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 
 export type SourcesExport = {
-  markdown: string;
+  text: string;
   uniqueSourceCount: number;
   flaggedClaimsCount: number;
 };
@@ -14,9 +14,11 @@ const VERDICT_ICON: Record<string, string> = {
 };
 
 /**
- * Formats research_briefs.sources + fact_checks.citations into a single
- * markdown block ready to paste into a video description — both already
- * exist per-topic/per-script, just never surfaced anywhere. Sources are
+ * Formats research_briefs.sources + fact_checks.citations into a plain-text
+ * block ready to paste into a YouTube description — both already exist
+ * per-topic/per-script, just never surfaced anywhere. Deliberately plain
+ * text, not markdown: YouTube descriptions don't render markdown, so "##"
+ * or "**bold**" would show as literal characters to viewers. Sources are
  * deduped by URL across the research brief and every claim's own citations,
  * since the same reference often backs both.
  */
@@ -36,22 +38,22 @@ export async function buildSourcesExport(topicId: string, scriptId: string): Pro
   }
   const sources = [...sourceByUrl.values()];
 
-  const lines: string[] = ["## Sources"];
-  for (const s of sources) lines.push(`- [${s.sourceName}](${s.sourceUrl})`);
+  const lines: string[] = ["Sources:"];
+  for (const s of sources) lines.push(`${s.sourceName} — ${s.sourceUrl}`);
 
   if (factChecks.length > 0) {
-    lines.push("", "## Fact-check notes");
+    lines.push("", "Fact-check notes:");
     for (const fc of factChecks) {
       const icon = VERDICT_ICON[fc.verdict] ?? "•";
-      lines.push(`${icon} **${fc.verdict.replace(/_/g, " ")}**: "${fc.claimText}"`);
+      lines.push(`${icon} ${fc.verdict.replace(/_/g, " ")}: "${fc.claimText}"`);
       if (fc.reviewerOverride) {
-        lines.push(`  - human override → ${fc.reviewerOverride.verdict}: ${fc.reviewerOverride.justification}`);
+        lines.push(`   human override -> ${fc.reviewerOverride.verdict}: ${fc.reviewerOverride.justification}`);
       }
     }
   }
 
   return {
-    markdown: lines.join("\n"),
+    text: lines.join("\n"),
     uniqueSourceCount: sources.length,
     flaggedClaimsCount: factChecks.filter((fc) => fc.verdict !== "supported").length,
   };

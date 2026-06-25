@@ -210,6 +210,12 @@ export const scripts = pgTable("scripts", {
   wordCount: integer("word_count").notNull(),
   /** Absent on scripts generated before the production-package pivot (2026-06-25). */
   thumbnailPrompts: jsonb("thumbnail_prompts").$type<Array<{ concept: string; textOverlay: string }>>(),
+  /** Hidden YouTube Studio "Tags" field — 8-12 phrases, never shown to viewers. Absent on older scripts. */
+  seoTags: text("seo_tags").array(),
+  /** Visible #hashtags for the description, 3-5, each starting with "#" with no spaces. Absent on older scripts. */
+  hashtags: text("hashtags").array(),
+  /** A real 2-3 sentence YouTube description (hashtags/sources appended separately, not included here). */
+  seoDescription: text("seo_description"),
   modelUsed: varchar("model_used", { length: 128 }).notNull(),
   generationCostUsd: numeric("generation_cost_usd", { precision: 10, scale: 4 }).default("0"),
   isHumanEdited: boolean("is_human_edited").notNull().default(false),

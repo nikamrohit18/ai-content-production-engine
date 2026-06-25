@@ -127,11 +127,20 @@ export default async function ProductionPackagePage({ params }: { params: Promis
           {pkg.beats.map((beat) => (
             <div key={beat.beatIndex} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row">
               {beat.referenceImageAssetId && (
-                <img
-                  src={`/api/assets/${beat.referenceImageAssetId}/file`}
-                  alt={`Reference for ${beat.beatName}`}
-                  className="h-40 w-full shrink-0 rounded-md object-cover sm:w-32"
-                />
+                <div className="flex shrink-0 flex-col gap-1 sm:w-32">
+                  <img
+                    src={`/api/assets/${beat.referenceImageAssetId}/file`}
+                    alt={`Reference for ${beat.beatName}`}
+                    className="h-40 w-full rounded-md object-cover"
+                  />
+                  <a
+                    href={`/api/assets/${beat.referenceImageAssetId}/file`}
+                    download={`${beat.beatName}-reference`}
+                    className="text-primary text-center text-xs hover:underline"
+                  >
+                    Download
+                  </a>
+                </div>
               )}
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -177,17 +186,63 @@ export default async function ProductionPackagePage({ params }: { params: Promis
 
       <Card>
         <CardHeader>
-          <CardTitle>Sources & fact-check notes</CardTitle>
+          <CardTitle>YouTube Studio tags</CardTitle>
+          <CardDescription>Hidden backend metadata — paste into Studio&rsquo;s &ldquo;Tags&rdquo; field, not the description.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {pkg.seo.tags ? (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {pkg.seo.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+              <div>
+                <CopyButton text={pkg.seo.tags.join(", ")} label="Copy tags" />
+              </div>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              This script was generated before SEO tags existed — regenerate the script to get these.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Description & sources</CardTitle>
           <CardDescription>
+            {pkg.seo.hashtags
+              ? `${pkg.seo.hashtags.length} hashtags · `
+              : ""}
             {pkg.sources.uniqueSourceCount} sources · {pkg.sources.flaggedClaimsCount} claims flagged for review.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+        <CardContent className="flex flex-col gap-3">
+          {pkg.seo.description ? (
+            <p className="text-sm">{pkg.seo.description}</p>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              This script was generated before a description existed — regenerate the script to get one.
+            </p>
+          )}
+          {pkg.seo.hashtags && (
+            <div className="flex flex-wrap gap-1.5">
+              {pkg.seo.hashtags.map((tag) => (
+                <Badge key={tag} variant="outline">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
           <pre className="bg-muted/50 max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-            {pkg.sources.markdown}
+            {pkg.sources.text}
           </pre>
-          <div>
-            <CopyButton text={pkg.sources.markdown} label="Copy for video description" />
+          <div className="flex gap-2">
+            <CopyButton text={pkg.seo.fullDescription} label="Copy full description" />
           </div>
         </CardContent>
       </Card>

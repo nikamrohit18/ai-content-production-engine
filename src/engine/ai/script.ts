@@ -61,6 +61,31 @@ const scriptOutputSchema = z.object({
     )
     .length(3)
     .describe("Exactly 3 distinct thumbnail concepts for this video, each a different visual angle on the hook."),
+  seoTags: z
+    .array(z.string())
+    .min(8)
+    .max(12)
+    .describe(
+      "8-12 hidden YouTube Studio 'Tags' — viewers never see these, only used for search/recommendation matching. " +
+        "2-3 word phrases a real viewer would type, not hashtags and not single generic words. Combined length " +
+        "must stay well under 500 characters total.",
+    ),
+  hashtags: z
+    .array(z.string().regex(/^#[A-Za-z0-9]+$/, "must start with # and contain no spaces or punctuation"))
+    .min(3)
+    .max(5)
+    .describe(
+      "3-5 visible YouTube hashtags for the description (not the title) — each must start with '#' and contain " +
+        "no spaces (e.g. '#BadaImambara', never '#Bada Imambara'). Specific to this video's actual subject, not " +
+        "generic ('#history' is fine as one of the 3-5, but not all of them).",
+    ),
+  seoDescription: z
+    .string()
+    .describe(
+      "A real YouTube video description: 2-3 sentences that hook a viewer deciding whether to watch and help " +
+        "search, in plain language — not a beat-by-beat recap of the script. Do not include hashtags or source " +
+        "links here; those are appended separately.",
+    ),
 });
 
 export type ScriptDraft = {
@@ -75,6 +100,9 @@ export type ScriptDraft = {
   }>;
   fullNarrationText: string;
   thumbnailPrompts: Array<{ concept: string; textOverlay: string }>;
+  seoTags: string[];
+  hashtags: string[];
+  seoDescription: string;
   modelUsed: string;
   generationId: string;
 };
@@ -138,6 +166,9 @@ export async function saveScript(
       beatStructure: draft.beatStructure,
       fullNarrationText: draft.fullNarrationText,
       thumbnailPrompts: draft.thumbnailPrompts,
+      seoTags: draft.seoTags,
+      hashtags: draft.hashtags,
+      seoDescription: draft.seoDescription,
       wordCount,
       modelUsed: draft.modelUsed,
       generationCostUsd: String(costUsd),

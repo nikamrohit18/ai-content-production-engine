@@ -21,6 +21,14 @@ export type ProductionPackageBeat = {
   onScreenUntilSec: number | null;
 };
 
+export type ProductionPackageSeo = {
+  tags: string[] | null;
+  hashtags: string[] | null;
+  description: string | null;
+  /** description + hashtags + sources assembled in upload order — ready to paste as-is. */
+  fullDescription: string;
+};
+
 export type ProductionPackage = {
   topicId: string;
   scriptId: string;
@@ -31,6 +39,7 @@ export type ProductionPackage = {
   thumbnailPrompts: Array<{ concept: string; textOverlay: string }> | null;
   voiceover: { assetId: string; characterCount: number; durationSec: number } | null;
   beats: ProductionPackageBeat[];
+  seo: ProductionPackageSeo;
   sources: SourcesExport;
 };
 
@@ -90,6 +99,10 @@ export async function buildProductionPackage(scriptId: string): Promise<Producti
 
   const sources = await buildSourcesExport(topic.id, scriptId);
 
+  const fullDescription = [script.seoDescription, script.hashtags?.join(" "), sources.text]
+    .filter((part): part is string => Boolean(part))
+    .join("\n\n");
+
   return {
     topicId: topic.id,
     scriptId,
@@ -100,6 +113,12 @@ export async function buildProductionPackage(scriptId: string): Promise<Producti
     thumbnailPrompts: script.thumbnailPrompts ?? null,
     voiceover,
     beats,
+    seo: {
+      tags: script.seoTags ?? null,
+      hashtags: script.hashtags ?? null,
+      description: script.seoDescription ?? null,
+      fullDescription,
+    },
     sources,
   };
 }
