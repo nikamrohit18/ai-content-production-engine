@@ -1,10 +1,18 @@
 import Link from "next/link";
-import { getDb } from "@/db";
+import { inArray } from "drizzle-orm";
+import { getDb, schema } from "@/db";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RunPipelineButton } from "./backlog-actions";
+
+function formatDuration(totalSec: number): string {
+  const sec = Math.round(totalSec);
+  const minutes = Math.floor(sec / 60);
+  const seconds = sec % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   backlog: "outline",
@@ -44,6 +52,61 @@ export default async function BacklogPage() {
     return acc;
   }, {});
 
+  const topicIds = topics.map((t) => t.id);
+  const [videoRows, scriptRows, nicheTemplateRows] = topicIds.length
+    ? await Promise.all([
+        db
+          .select({ topicId: schema.videos.topicId, durationSec: schema.videos.durationSec })
+          .from(schema.videos)
+          .where(inArray(schema.videos.topicId, topicIds)),
+        db
+          .select({
+            topicId: schema.scripts.topicId,
+            version: schema.scripts.version,
+            beatStructure: schema.scripts.beatStructure,
+          })
+          .from(schema.scripts)
+          .where(inArray(schema.scripts.topicId, topicIds)),
+        db
+          .select({
+            id: schema.nicheTemplates.id,
+            defaultShortLengthSec: schema.nicheTemplates.defaultShortLengthSec,
+            defaultLongformLengthSec: schema.nicheTemplates.defaultLongformLengthSec,
+          })
+          .from(schema.nicheTemplates),
+      ])
+    : [[], [], []];
+
+  const renderedDurationByTopic = new Map(
+    videoRows.filter((v) => v.durationSec != null).map((v) => [v.topicId, v.durationSec as number]),
+  );
+
+  const latestScriptByTopic = new Map<string, (typeof scriptRows)[number]>();
+  for (const script of scriptRows) {
+    const existing = latestScriptByTopic.get(script.topicId);
+    if (!existing || script.version > existing.version) {
+      latestScriptByTopic.set(script.topicId, script);
+    }
+  }
+
+  const nicheTemplateById = new Map(nicheTemplateRows.map((nt) => [nt.id, nt]));
+
+  function lengthLabel(topic: (typeof topics)[number]): string {
+    const renderedDuration = renderedDurationByTopic.get(topic.id);
+    if (renderedDuration != null) return formatDuration(renderedDuration);
+
+    const script = latestScriptByTopic.get(topic.id);
+    if (script) {
+      const estSec = script.beatStructure.reduce((sum, beat) => sum + (beat.estDurationSec ?? 0), 0);
+      if (estSec > 0) return `~${formatDuration(estSec)}`;
+    }
+
+    const template = nicheTemplateById.get(topic.nicheTemplateId);
+    const targetSec =
+      template && (topic.format === "short" ? template.defaultShortLengthSec : template.defaultLongformLengthSec);
+    return targetSec ? `${formatDuration(targetSec)} target` : "—";
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -70,6 +133,7 @@ export default async function BacklogPage() {
                 <TableHead>Title</TableHead>
                 <TableHead>Format</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Length</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -85,6 +149,7 @@ export default async function BacklogPage() {
                       {topic.status.replace(/_/g, " ")}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-muted-foreground">{lengthLabel(topic)}</TableCell>
                   <TableCell className="text-muted-foreground capitalize">
                     {topic.source.replace(/_/g, " ")}
                   </TableCell>
@@ -105,7 +170,7 @@ export default async function BacklogPage() {
               ))}
               {topics.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground py-10 text-center">
+                  <TableCell colSpan={7} className="text-muted-foreground py-10 text-center">
                     No topics yet. Seed the backlog or wait for trend sourcing to add some.
                   </TableCell>
                 </TableRow>
