@@ -14,6 +14,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   awaiting_review: "default",
   approved: "secondary",
   rejected: "destructive",
+  failed: "destructive",
   in_production: "secondary",
   published: "secondary",
   archived: "outline",
@@ -91,7 +92,7 @@ export default async function BacklogPage() {
                     {topic.createdAt.toLocaleDateString()}
                   </TableCell>
                   <TableCell className="text-right">
-                    {topic.status === "backlog" && (
+                    {(topic.status === "backlog" || topic.status === "failed") && (
                       <RunPipelineButton topicId={topic.id} topicTitle={topic.titleWorking} />
                     )}
                     {HAS_SCRIPT_STATUSES.has(topic.status) && (

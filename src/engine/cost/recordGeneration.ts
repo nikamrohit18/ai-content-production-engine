@@ -16,7 +16,15 @@ export async function recordGenerationCost(args: {
   modelUsed: string;
   category: "llm_tokens";
 }): Promise<number> {
-  const info = await gateway.getGenerationInfo({ id: args.generationId });
+  let info;
+  try {
+    info = await gateway.getGenerationInfo({ id: args.generationId });
+  } catch (error) {
+    // A Gateway cost-lookup hiccup shouldn't take down the pipeline step that
+    // depends on it — the generated content is more valuable than the cost row.
+    console.error(`recordGenerationCost: getGenerationInfo failed for ${args.generationId}`, error);
+    return 0;
+  }
   const db = getDb();
   await db.insert(schema.costLedger).values({
     channelId: args.channelId,

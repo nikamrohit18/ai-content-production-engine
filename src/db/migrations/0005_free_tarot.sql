@@ -1,0 +1,1 @@
+ALTER TYPE "public"."topic_status" ADD VALUE 'failed' BEFORE 'in_production';

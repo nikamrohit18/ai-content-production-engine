@@ -39,6 +39,7 @@ export const topicStatusEnum = pgEnum("topic_status", [
   "awaiting_review",
   "approved",
   "rejected",
+  "failed",
   "in_production",
   "published",
   "archived",

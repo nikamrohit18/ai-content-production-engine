@@ -12,7 +12,9 @@ export async function triggerPipeline(topicId: string): Promise<void> {
 
   const topic = await db.query.topics.findFirst({ where: (t, { eq }) => eq(t.id, topicId) });
   if (!topic) throw new Error("Topic not found");
-  if (topic.status !== "backlog") throw new Error(`Topic is already in status '${topic.status}'`);
+  if (topic.status !== "backlog" && topic.status !== "failed") {
+    throw new Error(`Topic is already in status '${topic.status}'`);
+  }
 
   await start(runTopicPipeline, [topicId, topic.channelId]);
   revalidatePath("/backlog");
