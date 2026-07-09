@@ -1,0 +1,1 @@
+ALTER TABLE "trend_signals" ADD COLUMN "blocked_reason" text;

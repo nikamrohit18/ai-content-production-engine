@@ -43,6 +43,13 @@
       "when": 1783599107796,
       "tag": "0005_free_tarot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783601431798,
+      "tag": "0006_hot_quasar",
+      "breakpoints": true
     }
   ]
 }

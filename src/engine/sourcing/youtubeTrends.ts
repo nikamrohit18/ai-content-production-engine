@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getTrendSearchQueries } from "@/config/niches";
+import { borderlineContentReason } from "./contentGuardrails";
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 
@@ -165,6 +166,7 @@ export async function promoteTrendSignalsToTopics(
             and(
               eq(schema.trendSignals.channelId, channelId),
               isNull(schema.trendSignals.promotedTopicId),
+              isNull(schema.trendSignals.blockedReason),
               or(isNull(schema.trendSignals.claimedAt), lt(schema.trendSignals.claimedAt, fiveMinAgo)),
             ),
           )
@@ -193,6 +195,15 @@ export async function promoteTrendSignalsToTopics(
   for (const signal of claimed) {
     const normalized = normalizeTitle(signal.videoTitle);
     if (existingNormalized.has(normalized)) continue;
+
+    const blockedReason = borderlineContentReason(signal.videoTitle);
+    if (blockedReason) {
+      await db
+        .update(schema.trendSignals)
+        .set({ blockedReason, updatedAt: new Date() })
+        .where(eq(schema.trendSignals.id, signal.id));
+      continue;
+    }
 
     const [topic] = await db
       .insert(schema.topics)

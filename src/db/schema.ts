@@ -359,6 +359,8 @@ export const trendSignals = pgTable("trend_signals", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),
   promotedTopicId: uuid("promoted_topic_id").references(() => topics.id, { onDelete: "set null" }),
+  /** Set when a content guardrail rejected this signal at promotion time — excluded from future claiming. */
+  blockedReason: text("blocked_reason"),
   rawMetadata: jsonb("raw_metadata").$type<Record<string, unknown>>().default({}),
   ...timestamps,
 }, (t) => [
