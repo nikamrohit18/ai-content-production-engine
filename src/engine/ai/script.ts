@@ -137,7 +137,12 @@ const scriptOutputSchema = z.object({
         "must stay well under 500 characters total.",
     ),
   hashtags: z
-    .array(z.string().regex(/^#[A-Za-z0-9]+$/, "must start with # and contain no spaces or punctuation"))
+    // Was restricted to ASCII [A-Za-z0-9], which sounds right but isn't the actual
+    // constraint that matters for YouTube (any non-whitespace token starting with #
+    // works) — a real generation failed this because the model wrote a Cyrillic "о"
+    // homoglyph in an otherwise-English word, hard-failing the whole script for a
+    // cosmetic non-issue. Only whitespace/a second "#" actually breaks a hashtag.
+    .array(z.string().regex(/^#[^\s#]+$/, "must start with # and contain no spaces or a second #"))
     .min(3)
     .max(5)
     .describe(
