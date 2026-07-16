@@ -2,7 +2,7 @@ import { put } from "@vercel/blob";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { textToSpeechWithTimestamps } from "./elevenLabs";
-import { cleanNarrationText } from "@/engine/ai/script";
+import { cleanNarrationText, deriveShots } from "@/engine/ai/script";
 
 export type GenerateVoiceoverResult = {
   scriptId: string;
@@ -41,6 +41,34 @@ function computeBeatTimings(
   });
 }
 
+export type ShotTiming = { beatIndex: number; shotIndex: number; startSec: number; endSec: number };
+
+/**
+ * Same alignment technique as computeBeatTimings, one level finer: each shot
+ * (see deriveShots) gets its own [startSec, endSec) window instead of one
+ * window per whole beat. This is what makes ~5-8s visual cuts possible in the
+ * production package instead of one static image per multi-sentence beat.
+ */
+function computeShotTimings(
+  beatStructure: Parameters<typeof deriveShots>[0],
+  fullNarrationText: string,
+  startTimes: number[],
+  endTimes: number[],
+): ShotTiming[] {
+  let searchOffset = 0;
+  return deriveShots(beatStructure).map((shot) => {
+    const cleaned = cleanNarrationText(shot.narrationSpan);
+    const idx = fullNarrationText.indexOf(cleaned, searchOffset);
+    if (idx === -1) {
+      throw new Error(
+        `Shot ${shot.shotIndex} of beat "${shot.beatName}" narrationSpan not found in fullNarrationText after cleaning — script generation produced inconsistent text`,
+      );
+    }
+    searchOffset = idx + cleaned.length;
+    return { beatIndex: shot.beatIndex, shotIndex: shot.shotIndex, startSec: startTimes[idx], endSec: endTimes[searchOffset - 1] };
+  });
+}
+
 /**
  * Generates one voiceover audio file for a script's full narration text
  * using the channel's configured premade ElevenLabs voice — never a
@@ -69,6 +97,7 @@ export async function generateVoiceoverForScript(scriptId: string): Promise<Gene
 
   const { audioBytes, startTimes, endTimes } = await textToSpeechWithTimestamps(voiceId, script.fullNarrationText);
   const beatTimings = computeBeatTimings(script.beatStructure, script.fullNarrationText, startTimes, endTimes);
+  const shotTimings = computeShotTimings(script.beatStructure, script.fullNarrationText, startTimes, endTimes);
   const durationSec = endTimes[endTimes.length - 1];
 
   // Idempotent like assetSourcing.ts: a step retry or manual re-generation
@@ -95,7 +124,7 @@ export async function generateVoiceoverForScript(scriptId: string): Promise<Gene
       license: "elevenlabs_commercial",
       blobUrl: blob.url,
       blobAccess: "private",
-      metadata: { voiceId, characterCount, durationSec, beatTimings },
+      metadata: { voiceId, characterCount, durationSec, beatTimings, shotTimings },
     })
     .returning();
 

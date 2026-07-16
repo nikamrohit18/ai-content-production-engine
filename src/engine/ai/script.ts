@@ -16,6 +16,51 @@ export function cleanNarrationText(text: string): string {
   return text.replace(/\s*\[[^\]]*\]/g, "").replace(/\*/g, "").trim();
 }
 
+export type DerivedShot = {
+  beatIndex: number;
+  shotIndex: number;
+  beatName: string;
+  narrationSpan: string;
+  imageGenPrompt: string | null;
+  videoGenPrompt: string | null;
+};
+
+/**
+ * Flattens beatStructure into individual visual shots. New scripts carry
+ * per-beat visualBeats (the pacing-driven shot breakdown); scripts saved
+ * before that pivot fall back to one implicit shot spanning the whole beat,
+ * using the beat's own legacy imageGenPrompt/videoGenPrompt — so voiceover
+ * timing and the production package keep working for old scripts too.
+ */
+export function deriveShots(
+  beatStructure: Array<{
+    beatName: string;
+    narrationText: string;
+    imageGenPrompt?: string;
+    videoGenPrompt?: string;
+    visualBeats?: Array<{ narrationSpan: string; imageGenPrompt: string; videoGenPrompt?: string }>;
+  }>,
+): DerivedShot[] {
+  return beatStructure.flatMap((beat, beatIndex) => {
+    const shots = beat.visualBeats?.length
+      ? beat.visualBeats
+      : [{ narrationSpan: beat.narrationText, imageGenPrompt: beat.imageGenPrompt, videoGenPrompt: beat.videoGenPrompt }];
+    return shots.map((shot, shotIndex) => ({
+      beatIndex,
+      shotIndex,
+      beatName: beat.beatName,
+      narrationSpan: shot.narrationSpan,
+      imageGenPrompt: shot.imageGenPrompt ?? null,
+      videoGenPrompt: shot.videoGenPrompt ?? null,
+    }));
+  });
+}
+
+// Measured from this channel's actual ElevenLabs voice output (494 words / 218.1s
+// on a real generated script) rather than a generic TTS estimate — documentary-pace
+// narration on this voice runs slower than typical 150wpm reading-aloud averages.
+export const WORDS_PER_MINUTE = 135;
+
 const scriptOutputSchema = z.object({
   beatStructure: z.array(
     z.object({
@@ -34,20 +79,41 @@ const scriptOutputSchema = z.object({
         .describe(
           "A VERY SHORT search query (2-3 words max) for finding an archival photo on Wikimedia Commons — just the core proper-noun entity name (e.g. 'Antikythera mechanism', 'Göbekli Tepe'), never a descriptive phrase. Commons search matches literally on title words, not semantically — extra qualifying words reduce match rate rather than improve it. Never use the clickbait-style topic title or video phrasing.",
         ),
-      imageGenPrompt: z
-        .string()
+      visualBeats: z
+        .array(
+          z.object({
+            narrationSpan: z
+              .string()
+              .describe(
+                "The exact portion of THIS beat's narrationText that this shot's visual covers, verbatim — must appear as a substring of narrationText, in shot order, and all shots in this beat must concatenate back to narrationText exactly (no gaps, no overlap). Split so each shot covers roughly 5-8 seconds of spoken narration (~15-25 words) — never one shot spanning an entire multi-sentence beat.",
+              ),
+            imageGenPrompt: z
+              .string()
+              .describe(
+                "A ready-to-paste prompt for an AI image generator (Midjourney/Nano Banana/etc.) depicting THIS shot's narrationSpan specifically, not the whole beat and not a search query. Describe the specific scene, subject, setting, lighting, and camera framing in concrete visual detail. Match the channel's desaturated cinematic documentary look (muted color grade, slow/measured mood, archival-photo realism rather than fantasy or cartoon style) unless this shot calls for a clear diagram/infographic instead. Must depict this shot's specific narration, not a generic restatement of the topic or beat.",
+              ),
+            videoGenPrompt: z
+              .string()
+              .optional()
+              .describe(
+                "Optional — only include for shots where subtle motion would meaningfully add to the scene (e.g. dust drifting, slow camera dolly/pan, flickering torchlight). A prompt for an AI video generator describing the motion/camera movement specifically, building on this shot's imageGenPrompt rather than re-describing it from scratch. Omit entirely for shots that are fine as a still image.",
+              ),
+          }),
+        )
+        .min(1)
         .describe(
-          "A ready-to-paste prompt for an AI image generator (Midjourney/Nano Banana/etc.) depicting THIS beat's narration, not a search query. Describe the specific scene, subject, setting, lighting, and camera framing in concrete visual detail. Match the channel's desaturated cinematic documentary look (muted color grade, slow/measured mood, archival-photo realism rather than fantasy or cartoon style) unless the beat itself calls for a clear diagram/infographic instead. Must depict this beat's specific content, not a generic restatement of the topic.",
-        ),
-      videoGenPrompt: z
-        .string()
-        .optional()
-        .describe(
-          "Optional — only include for beats where subtle motion would meaningfully add to the scene (e.g. dust drifting, slow camera dolly/pan, flickering torchlight). A prompt for an AI video generator describing the motion/camera movement specifically, building on imageGenPrompt's scene rather than re-describing it from scratch. Omit entirely for beats that are fine as a still image.",
+          "Break this beat's narration into individual visual shots/cuts at the channel's target pacing stated in the instructions above. A beat is a story unit; a shot is a single visual cut. Most beats should contain multiple shots — only use a single shot for a beat genuinely short enough to fit the pacing target in one cut.",
         ),
     }),
   ),
-  fullNarrationText: z.string(),
+  fullNarrationText: z
+    .string()
+    .describe(
+      "The complete narration, all beats concatenated in order. Must match the target word count / length stated " +
+        "in the instructions above — do not pad with filler beats or extra sentences to run longer, and do not " +
+        "truncate the story to run shorter. For a 'short', staying under the target is critical for Shorts " +
+        "feed eligibility, not just a style preference.",
+    ),
   thumbnailPrompts: z
     .array(
       z.object({
@@ -95,8 +161,11 @@ export type ScriptDraft = {
     visualCue: string;
     estDurationSec: number;
     imageSearchQuery: string;
-    imageGenPrompt: string;
-    videoGenPrompt?: string;
+    visualBeats: Array<{
+      narrationSpan: string;
+      imageGenPrompt: string;
+      videoGenPrompt?: string;
+    }>;
   }>;
   fullNarrationText: string;
   thumbnailPrompts: Array<{ concept: string; textOverlay: string }>;
@@ -121,10 +190,27 @@ export async function draftScript(topicId: string, briefId: string): Promise<Scr
   const brief = await db.query.researchBriefs.findFirst({ where: (rb, { eq }) => eq(rb.id, briefId) });
   if (!brief) throw new Error(`Research brief ${briefId} not found`);
 
+  // visualBeatGuidance.pacing drives how finely the model splits each beat into
+  // shots (see visualBeats below) — fall back to a sane default for niches that
+  // predate this field rather than leaving the prompt with an empty placeholder.
+  const pacingGuidance =
+    (nicheTemplate.visualBeatGuidance as { pacing?: string } | null)?.pacing ?? "one visual change every 5-8 seconds";
+
+  const targetLengthSec = topic.format === "short" ? nicheTemplate.defaultShortLengthSec : nicheTemplate.defaultLongformLengthSec;
+  const targetWordCount = Math.round((targetLengthSec / 60) * WORDS_PER_MINUTE);
+
+  // Beats without a formats tag apply to both (backward compat for templates saved
+  // before this field existed) — a short's word budget can't fit the full longform
+  // arc, so it gets whichever subset of beats is actually tagged for "short".
+  const applicableBeats = nicheTemplate.scriptFormula.filter((b) => !b.formats || b.formats.includes(topic.format));
+
   const rendered = renderTemplate(nicheTemplate.scriptPromptTemplate, {
     topicTitle: topic.titleWorking,
     format: topic.format,
-    scriptFormula: JSON.stringify(nicheTemplate.scriptFormula),
+    scriptFormula: JSON.stringify(applicableBeats),
+    pacingGuidance,
+    targetLengthSec: String(targetLengthSec),
+    targetWordCount: String(targetWordCount),
   });
 
   const sourcesList = brief.sources
@@ -140,6 +226,16 @@ export async function draftScript(topicId: string, briefId: string): Promise<Scr
 
   const generationId = result.providerMetadata?.gateway?.generationId as string | undefined;
   if (!generationId) throw new Error("No gateway generationId returned for script generation");
+
+  // A soft check, not a retry loop — flags drift for follow-up rather than blocking
+  // the draft, since the fact-check/review step is the real gate before this ships.
+  const actualWordCount = result.output.fullNarrationText.trim().split(/\s+/).filter(Boolean).length;
+  if (Math.abs(actualWordCount - targetWordCount) / targetWordCount > 0.3) {
+    console.warn(
+      `[draftScript] topic ${topicId}: narration is ${actualWordCount} words, target was ${targetWordCount} ` +
+        `(±30% band) for a ${targetLengthSec}s ${topic.format}`,
+    );
+  }
 
   return { ...result.output, modelUsed: SCRIPT_MODEL, generationId };
 }

@@ -1,4 +1,5 @@
 import { config } from "dotenv";
+import { sql } from "drizzle-orm";
 import { getDb, schema } from "./index";
 
 config({ path: ".env.local" });
@@ -40,15 +41,54 @@ async function seedHistoryChannel() {
     .insert(schema.nicheTemplates)
     .values({
       niche: "history",
+      // Longform gets the full 8-beat arc. A short's ~40s / ~90-word budget can't fit all
+      // eight without reducing each to a single clause — so shorts use a tighter 4-beat
+      // arc (hook -> rising_mystery -> turn -> cta) that still has a real hook and payoff,
+      // and drop context/evidence/counterpoint/resolution, which need room to breathe.
       scriptFormula: [
-        { beat: "hook", guidance: "Open with a vivid, concrete image or question that creates mystery within 5 seconds. Never open with 'In this video...'." },
-        { beat: "context", guidance: "Establish time, place, and stakes in plain language. Assume no prior knowledge of the period." },
-        { beat: "rising_mystery", guidance: "Introduce the central anomaly or forgotten fact. Build curiosity with specific, verifiable details, not vague claims." },
-        { beat: "evidence", guidance: "Present the strongest verifiable evidence: named artifacts, texts, or archaeological findings with sources." },
-        { beat: "counterpoint", guidance: "Fairly state the mainstream historical explanation or skeptical view before contrasting it." },
-        { beat: "turn", guidance: "Reveal the twist, reinterpretation, or implication that recontextualizes the story." },
-        { beat: "resolution", guidance: "Land on a grounded takeaway. For disputed claims use 'some historians argue' framing rather than asserting certainty." },
-        { beat: "cta", guidance: "Close with a question that invites comments, plus a soft subscribe prompt." },
+        {
+          beat: "hook",
+          guidance: "Open with a vivid, concrete image or question that creates mystery within 5 seconds. Never open with 'In this video...'.",
+          formats: ["short", "longform"],
+        },
+        {
+          beat: "context",
+          guidance: "Establish time, place, and stakes in plain language. Assume no prior knowledge of the period.",
+          formats: ["longform"],
+        },
+        {
+          beat: "rising_mystery",
+          guidance:
+            "Introduce the central anomaly or forgotten fact. Build curiosity with specific, verifiable details, not vague claims. " +
+            "On a short, this beat also carries the strongest single piece of evidence — there's no separate evidence beat to lean on.",
+          formats: ["short", "longform"],
+        },
+        {
+          beat: "evidence",
+          guidance: "Present the strongest verifiable evidence: named artifacts, texts, or archaeological findings with sources.",
+          formats: ["longform"],
+        },
+        {
+          beat: "counterpoint",
+          guidance: "Fairly state the mainstream historical explanation or skeptical view before contrasting it.",
+          formats: ["longform"],
+        },
+        {
+          beat: "turn",
+          guidance: "Reveal the twist, reinterpretation, or implication that recontextualizes the story.",
+          formats: ["short", "longform"],
+        },
+        {
+          beat: "resolution",
+          guidance: "Land on a grounded takeaway. For disputed claims use 'some historians argue' framing rather than asserting certainty.",
+          formats: ["longform"],
+        },
+        {
+          beat: "cta",
+          guidance:
+            "Close with a question that invites comments, plus a soft subscribe prompt. On a short, keep this to one short line.",
+          formats: ["short", "longform"],
+        },
       ],
       researchPromptTemplate:
         "Research the historical topic: {{topicTitle}}. Gather verifiable facts from primary or academic sources " +
@@ -63,7 +103,16 @@ async function seedHistoryChannel() {
         "Tone: curious, cinematic, measured authority — never sensational or conspiratorial. " +
         "Hook the viewer in the first 5 seconds with a concrete image or question, not a topic label. " +
         "Do not frame any culture's history as 'secrets only they knew' — frame discoveries as universal human mysteries. " +
-        "Mark every factual claim so it can be traced back to a research citation for fact-checking.",
+        "Mark every factual claim so it can be traced back to a research citation for fact-checking. " +
+        "Visual pacing target: {{pacingGuidance}}. Within each beat, split the narration into multiple shots to hit " +
+        "that pace — a beat is a story unit, a shot is a single visual cut, and most beats should contain several " +
+        "shots, not one held for the whole beat. " +
+        "Target length: approximately {{targetWordCount}} words of spoken narration total (~{{targetLengthSec}} " +
+        "seconds at this channel's measured narration pace). Stay close to this across the whole script — for a " +
+        "'short' this is a hard ceiling for YouTube Shorts feed eligibility, not a style preference, so do not add " +
+        "extra beats, sentences, or padding to run longer than the target. For a 'short' specifically: budget " +
+        "roughly {{targetWordCount}} words divided evenly across the beats above, keep each beat to 1-2 short " +
+        "sentences, and prefer cutting detail from the guidance over exceeding the word budget.",
       factcheckPromptTemplate:
         "Extract every factual claim from this script: {{fullNarrationText}}. For each claim, assign a verdict — " +
         "'supported', 'unsupported', 'disputed', or 'needs_human_judgment' — based on the attached research citations. " +
@@ -77,7 +126,19 @@ async function seedHistoryChannel() {
     })
     .onConflictDoUpdate({
       target: schema.nicheTemplates.niche,
-      set: { updatedAt: new Date() },
+      // Re-running the seed is how prompt/formula edits actually reach an existing
+      // template row — set: { updatedAt } alone (the old behavior) silently discarded
+      // every content change on conflict, so editing this file did nothing.
+      set: {
+        scriptFormula: sql`excluded.script_formula`,
+        researchPromptTemplate: sql`excluded.research_prompt_template`,
+        scriptPromptTemplate: sql`excluded.script_prompt_template`,
+        factcheckPromptTemplate: sql`excluded.factcheck_prompt_template`,
+        visualBeatGuidance: sql`excluded.visual_beat_guidance`,
+        defaultLongformLengthSec: sql`excluded.default_longform_length_sec`,
+        defaultShortLengthSec: sql`excluded.default_short_length_sec`,
+        updatedAt: new Date(),
+      },
     })
     .returning();
 

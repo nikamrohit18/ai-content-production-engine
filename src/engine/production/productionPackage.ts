@@ -1,22 +1,25 @@
 import { getDb } from "@/db";
+import { deriveShots } from "@/engine/ai/script";
 import { DIMENSIONS } from "@/engine/render/composition";
 import { buildSourcesExport, type SourcesExport } from "./sources";
 
-export type ProductionPackageBeat = {
+export type ProductionPackageShot = {
   beatIndex: number;
+  shotIndex: number;
   beatName: string;
-  narrationText: string;
+  /** The slice of this beat's narration this shot's visual covers — not the whole beat. */
+  narrationSpan: string;
   imageGenPrompt: string | null;
   videoGenPrompt: string | null;
   referenceImageAssetId: string | null;
   referenceImageLicense: string | null;
-  /** When this beat's narration starts in the single continuous voiceover track. */
+  /** When this shot's narration starts in the single continuous voiceover track. */
   startSec: number | null;
   /**
-   * When to cut to the NEXT beat's visual — runs until the next beat's
-   * startSec (or the end of the track for the last beat), not this beat's
+   * When to cut to the NEXT shot's visual — runs until the next shot's
+   * startSec (or the end of the track for the last shot), not this shot's
    * own narration end, so there's no on-screen gap during the natural
-   * pause between lines. Matches the Remotion composition's timing exactly.
+   * pause between lines.
    */
   onScreenUntilSec: number | null;
 };
@@ -38,13 +41,13 @@ export type ProductionPackage = {
   fullNarrationText: string;
   thumbnailPrompts: Array<{ concept: string; textOverlay: string }> | null;
   voiceover: { assetId: string; characterCount: number; durationSec: number } | null;
-  beats: ProductionPackageBeat[];
+  shots: ProductionPackageShot[];
   seo: ProductionPackageSeo;
   sources: SourcesExport;
 };
 
 /**
- * Ties together everything needed for manual production: script + per-beat
+ * Ties together everything needed for manual production: script + per-shot
  * visual prompts (with the already-sourced archival image as a recreate/
  * enhance reference) + thumbnail prompts + voiceover + sources. Doesn't
  * require the render-pipeline steps to have produced a finished video —
@@ -71,25 +74,38 @@ export async function buildProductionPackage(scriptId: string): Promise<Producti
 
   const voiceoverAsset = assets.find((a) => a.assetType === "audio_voiceover");
   const voiceMeta = voiceoverAsset?.metadata as
-    | { characterCount?: number; durationSec?: number; beatTimings?: Array<{ beatIndex: number; startSec: number; endSec: number }> }
+    | {
+        characterCount?: number;
+        durationSec?: number;
+        shotTimings?: Array<{ beatIndex: number; shotIndex: number; startSec: number; endSec: number }>;
+        /** Voiceovers generated before shot-level timing existed only have this. */
+        beatTimings?: Array<{ beatIndex: number; startSec: number; endSec: number }>;
+      }
     | undefined;
   const voiceover =
     voiceoverAsset && voiceMeta?.durationSec
       ? { assetId: voiceoverAsset.id, characterCount: voiceMeta.characterCount ?? 0, durationSec: voiceMeta.durationSec }
       : null;
-  const timings = [...(voiceMeta?.beatTimings ?? [])].sort((a, b) => a.beatIndex - b.beatIndex);
-  const timingByBeatIndex = new Map(timings.map((t) => [t.beatIndex, t]));
 
-  const beats: ProductionPackageBeat[] = script.beatStructure.map((beat, beatIndex) => {
-    const reference = imageByBeatIndex.get(beatIndex);
-    const timing = timingByBeatIndex.get(beatIndex);
-    const nextTiming = timings[timings.findIndex((t) => t.beatIndex === beatIndex) + 1];
+  // Falls back to one synthetic per-beat "shot timing" (shotIndex 0) for voiceovers
+  // generated before shotTimings existed — deriveShots degrades the same way for
+  // scripts without visualBeats, so the two arrays stay index-aligned either way.
+  const shotTimings =
+    voiceMeta?.shotTimings ??
+    voiceMeta?.beatTimings?.map((t) => ({ beatIndex: t.beatIndex, shotIndex: 0, startSec: t.startSec, endSec: t.endSec })) ??
+    [];
+
+  const shots: ProductionPackageShot[] = deriveShots(script.beatStructure).map((shot, i) => {
+    const reference = imageByBeatIndex.get(shot.beatIndex);
+    const timing = shotTimings[i];
+    const nextTiming = shotTimings[i + 1];
     return {
-      beatIndex,
-      beatName: beat.beatName,
-      narrationText: beat.narrationText,
-      imageGenPrompt: beat.imageGenPrompt ?? null,
-      videoGenPrompt: beat.videoGenPrompt ?? null,
+      beatIndex: shot.beatIndex,
+      shotIndex: shot.shotIndex,
+      beatName: shot.beatName,
+      narrationSpan: shot.narrationSpan,
+      imageGenPrompt: shot.imageGenPrompt,
+      videoGenPrompt: shot.videoGenPrompt,
       referenceImageAssetId: reference?.id ?? null,
       referenceImageLicense: reference?.license ?? null,
       startSec: timing?.startSec ?? null,
@@ -112,7 +128,7 @@ export async function buildProductionPackage(scriptId: string): Promise<Producti
     fullNarrationText: script.fullNarrationText,
     thumbnailPrompts: script.thumbnailPrompts ?? null,
     voiceover,
-    beats,
+    shots,
     seo: {
       tags: script.seoTags ?? null,
       hashtags: script.hashtags ?? null,

@@ -161,7 +161,14 @@ export const channels = pgTable("channels", {
 export const nicheTemplates = pgTable("niche_templates", {
   id: id(),
   niche: nicheEnum("niche").notNull(),
-  scriptFormula: jsonb("script_formula").$type<Array<{ beat: string; guidance: string }>>().notNull(),
+  /**
+   * formats is optional so beats predating this field still apply to both formats
+   * (backward compatible). A "short"'s word budget can't fit the full longform arc —
+   * see WORDS_PER_MINUTE in engine/ai/script.ts — so shorts use a filtered subset.
+   */
+  scriptFormula: jsonb("script_formula")
+    .$type<Array<{ beat: string; guidance: string; formats?: Array<"short" | "longform"> }>>()
+    .notNull(),
   researchPromptTemplate: text("research_prompt_template").notNull(),
   scriptPromptTemplate: text("script_prompt_template").notNull(),
   factcheckPromptTemplate: text("factcheck_prompt_template").notNull(),
@@ -200,10 +207,21 @@ export const scripts = pgTable("scripts", {
         estDurationSec: number;
         /** Absent on scripts generated before this field was added. */
         imageSearchQuery?: string;
-        /** Absent on scripts generated before the production-package pivot. */
+        /** Absent on scripts generated before the production-package pivot. Superseded by visualBeats. */
         imageGenPrompt?: string;
-        /** Absent on scripts generated before the production-package pivot; optional even on new ones. */
+        /** Absent on scripts generated before the production-package pivot. Superseded by visualBeats. */
         videoGenPrompt?: string;
+        /**
+         * Per-shot visual breakdown of this beat's narration, added for the pacing pivot
+         * (2026-07-16) so a beat = story/narrative unit while a shot = a single ~5-8s visual
+         * cut. Absent on scripts generated before this — those fall back to treating the whole
+         * beat as one implicit shot (see deriveShots in engine/ai/script.ts).
+         */
+        visualBeats?: Array<{
+          narrationSpan: string;
+          imageGenPrompt: string;
+          videoGenPrompt?: string;
+        }>;
       }>
     >()
     .notNull(),

@@ -114,70 +114,73 @@ export default async function ProductionPackagePage({ params }: { params: Promis
 
       <Card>
         <CardHeader>
-          <CardTitle>Per-beat visuals</CardTitle>
+          <CardTitle>Shots</CardTitle>
           <CardDescription>
-            Aligned one-to-one with the narration — each card is the next beat in the story, in order. The timestamp
-            on each card is exactly when to cut to that beat&rsquo;s image in your editor (against the downloaded
-            voiceover track) and hold it until the next beat&rsquo;s timestamp — that already accounts for the small
-            natural pause between lines, so there&rsquo;s no gap. Apply a slow zoom in/out for that whole window;
-            alternating direction beat-to-beat reads better than zooming the same way every time.
+            Each card is one visual cut, in order — several per narrative beat, aimed at a ~5-8 second pace instead
+            of one static image per beat. The timestamp on each card is exactly when to cut to that shot&rsquo;s
+            image in your editor (against the downloaded voiceover track) and hold it until the next shot&rsquo;s
+            timestamp — that already accounts for the small natural pause between lines, so there&rsquo;s no gap.
+            Apply a slow zoom in/out for that whole window; alternating direction shot-to-shot reads better than
+            zooming the same way every time.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {pkg.beats.map((beat) => (
-            <div key={beat.beatIndex} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row">
-              {beat.referenceImageAssetId && (
-                <div className="flex shrink-0 flex-col gap-1 sm:w-32">
-                  <img
-                    src={`/api/assets/${beat.referenceImageAssetId}/file`}
-                    alt={`Reference for ${beat.beatName}`}
-                    className="h-40 w-full rounded-md object-cover"
-                  />
-                  <a
-                    href={`/api/assets/${beat.referenceImageAssetId}/file`}
-                    download={`${beat.beatName}-reference`}
-                    className="text-primary text-center text-xs hover:underline"
-                  >
-                    Download
-                  </a>
-                </div>
+          {pkg.shots.map((shot, i) => (
+            <div key={`${shot.beatIndex}-${shot.shotIndex}`}>
+              {(i === 0 || shot.beatIndex !== pkg.shots[i - 1].beatIndex) && (
+                <p className="text-muted-foreground mt-2 mb-2 text-xs font-medium tracking-wide uppercase first:mt-0">
+                  {shot.beatName.replace(/_/g, " ")}
+                </p>
               )}
-              <div className="flex flex-1 flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="capitalize">
-                      {beat.beatName.replace(/_/g, " ")}
-                    </Badge>
-                    {beat.startSec != null && beat.onScreenUntilSec != null && (
+              <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row">
+                {shot.referenceImageAssetId && (
+                  <div className="flex shrink-0 flex-col gap-1 sm:w-32">
+                    <img
+                      src={`/api/assets/${shot.referenceImageAssetId}/file`}
+                      alt={`Reference for ${shot.beatName}`}
+                      className="h-40 w-full rounded-md object-cover"
+                    />
+                    <a
+                      href={`/api/assets/${shot.referenceImageAssetId}/file`}
+                      download={`${shot.beatName}-reference`}
+                      className="text-primary text-center text-xs hover:underline"
+                    >
+                      Download
+                    </a>
+                  </div>
+                )}
+                <div className="flex flex-1 flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    {shot.startSec != null && shot.onScreenUntilSec != null && (
                       <Badge variant="secondary">
-                        {formatDuration(beat.startSec)} – {formatDuration(beat.onScreenUntilSec)}
+                        {formatDuration(shot.startSec)} – {formatDuration(shot.onScreenUntilSec)}
                       </Badge>
                     )}
+                    {shot.referenceImageLicense && (
+                      <span className="text-muted-foreground text-xs">reference license: {shot.referenceImageLicense}</span>
+                    )}
                   </div>
-                  {beat.referenceImageLicense && (
-                    <span className="text-muted-foreground text-xs">reference license: {beat.referenceImageLicense}</span>
+                  <p className="text-muted-foreground text-sm italic">&ldquo;{shot.narrationSpan}&rdquo;</p>
+                  {shot.imageGenPrompt ? (
+                    <div className="flex items-start justify-between gap-2 rounded-md bg-muted/50 p-2">
+                      <p className="text-sm">{shot.imageGenPrompt}</p>
+                      <CopyButton text={shot.imageGenPrompt} />
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      No image-gen prompt — this script predates the production-package fields.
+                    </p>
+                  )}
+                  {shot.videoGenPrompt && (
+                    <div className="flex items-start justify-between gap-2 rounded-md bg-muted/50 p-2">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">video (optional): </span>
+                        {shot.videoGenPrompt}
+                      </p>
+                      <CopyButton text={shot.videoGenPrompt} />
+                    </div>
                   )}
                 </div>
-                <p className="text-muted-foreground text-sm italic">&ldquo;{beat.narrationText}&rdquo;</p>
-                {beat.imageGenPrompt ? (
-                  <div className="flex items-start justify-between gap-2 rounded-md bg-muted/50 p-2">
-                    <p className="text-sm">{beat.imageGenPrompt}</p>
-                    <CopyButton text={beat.imageGenPrompt} />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    No image-gen prompt — this script predates the production-package fields.
-                  </p>
-                )}
-                {beat.videoGenPrompt && (
-                  <div className="flex items-start justify-between gap-2 rounded-md bg-muted/50 p-2">
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">video (optional): </span>
-                      {beat.videoGenPrompt}
-                    </p>
-                    <CopyButton text={beat.videoGenPrompt} />
-                  </div>
-                )}
               </div>
             </div>
           ))}
