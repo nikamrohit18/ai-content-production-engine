@@ -65,15 +65,14 @@ const scriptOutputSchema = z.object({
   beatStructure: z.array(
     z.object({
       beatName: z.string(),
-      narrationText: z
-        .string()
-        .describe(
-          "Pure spoken narration only, exactly as it should be read aloud — never include bracketed citations " +
-            "like '[Source: ...]', markdown emphasis asterisks, or any annotation not meant to be spoken. Must " +
-            "appear verbatim as a substring of fullNarrationText, in beat order.",
-        ),
       visualCue: z.string(),
-      estDurationSec: z.number(),
+      estDurationSec: z
+        .number()
+        .describe(
+          "This beat's total spoken duration in seconds. Decide this FIRST, before writing any narration — it " +
+            "determines how many shots the beat needs (roughly one shot per 5-6 seconds, so a 20s beat needs " +
+            "3-4 shots, not 1-2).",
+        ),
       imageSearchQuery: z
         .string()
         .describe(
@@ -85,7 +84,7 @@ const scriptOutputSchema = z.object({
             narrationSpan: z
               .string()
               .describe(
-                "The exact portion of THIS beat's narrationText that this shot's visual covers, verbatim — must appear as a substring of narrationText, in shot order, and all shots in this beat must concatenate back to narrationText exactly (no gaps, no overlap). Split so each shot covers roughly 5-8 seconds of spoken narration (~15-25 words) — never one shot spanning an entire multi-sentence beat.",
+                "This shot's own spoken narration — compose it directly at this length; never write the beat as one flowing passage first and carve shots out of it afterward, and never let 'this is one grammatical sentence' be a reason to keep a span whole. Pure spoken narration only, exactly as it should be read aloud — never include bracketed citations like '[Source: ...]', markdown emphasis asterisks, or any annotation not meant to be spoken. TARGET 10-14 words per shot, HARD CEILING 18 words — at this channel's measured narration pace (135 words/minute, ~2.25 words/sec), 18 words is already a full 8 seconds, so treat 18 as an absolute maximum, not a comfortable target. Aim for the 10-14 range by default. If a thought needs more than 18 words, that's two or three shots, each written at the target length, not one long shot. All shots in this beat concatenate in order (joined by a single space) into the beat's full narration, so write each shot as a natural continuation of the one before it — the joined result must read as fluent continuous prose, not choppy fragments, even though it was composed shot-by-shot.",
               ),
             imageGenPrompt: z
               .string()
@@ -102,18 +101,10 @@ const scriptOutputSchema = z.object({
         )
         .min(1)
         .describe(
-          "Break this beat's narration into individual visual shots/cuts at the channel's target pacing stated in the instructions above. A beat is a story unit; a shot is a single visual cut. Most beats should contain multiple shots — only use a single shot for a beat genuinely short enough to fit the pacing target in one cut.",
+          "Plan this beat's shots BEFORE writing any narration: given estDurationSec, decide how many shots this beat needs at ~10-14 words (~5-6 seconds) each — NEVER more than 18 words (~8 seconds) per shot — then write each shot's own narration directly at that length as the primary unit. Do not write the beat as a full passage first and split it afterward, and do not treat 18 words as a comfortable target; aim lower, at 10-14. A beat is a story unit; a shot is a single visual cut, independent of sentence boundaries. Most beats need 3+ shots; a single-shot beat should be rare, not the default. IMPORTANT: the per-shot word ceiling is not a lever for hitting the script's overall target length — if the total narration is running short, add MORE shots with more supporting detail, examples, and evidence to this beat, never lengthen individual shots past the ceiling to compensate.",
         ),
     }),
   ),
-  fullNarrationText: z
-    .string()
-    .describe(
-      "The complete narration, all beats concatenated in order. Must match the target word count / length stated " +
-        "in the instructions above — do not pad with filler beats or extra sentences to run longer, and do not " +
-        "truncate the story to run shorter. For a 'short', staying under the target is critical for Shorts " +
-        "feed eligibility, not just a style preference.",
-    ),
   thumbnailPrompts: z
     .array(
       z.object({
@@ -232,9 +223,20 @@ export async function draftScript(topicId: string, briefId: string): Promise<Scr
   const generationId = result.providerMetadata?.gateway?.generationId as string | undefined;
   if (!generationId) throw new Error("No gateway generationId returned for script generation");
 
+  // narrationText/fullNarrationText are derived from the shots rather than generated
+  // independently by the model — shot narration is now the single source of truth for
+  // spoken content, which both guarantees the two always agree (no more substring-match
+  // drift) and forces the model to compose narration shot-by-shot at the target length
+  // instead of writing full prose first and carving shots out of it after the fact.
+  const beatStructure = result.output.beatStructure.map((beat) => ({
+    ...beat,
+    narrationText: beat.visualBeats.map((shot) => shot.narrationSpan).join(" "),
+  }));
+  const fullNarrationText = beatStructure.map((beat) => beat.narrationText).join(" ");
+
   // A soft check, not a retry loop — flags drift for follow-up rather than blocking
   // the draft, since the fact-check/review step is the real gate before this ships.
-  const actualWordCount = result.output.fullNarrationText.trim().split(/\s+/).filter(Boolean).length;
+  const actualWordCount = fullNarrationText.trim().split(/\s+/).filter(Boolean).length;
   if (Math.abs(actualWordCount - targetWordCount) / targetWordCount > 0.3) {
     console.warn(
       `[draftScript] topic ${topicId}: narration is ${actualWordCount} words, target was ${targetWordCount} ` +
@@ -242,7 +244,7 @@ export async function draftScript(topicId: string, briefId: string): Promise<Scr
     );
   }
 
-  return { ...result.output, modelUsed: SCRIPT_MODEL, generationId };
+  return { ...result.output, beatStructure, fullNarrationText, modelUsed: SCRIPT_MODEL, generationId };
 }
 
 export async function saveScript(

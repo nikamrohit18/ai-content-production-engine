@@ -104,11 +104,21 @@ async function seedHistoryChannel() {
         "Hook the viewer in the first 5 seconds with a concrete image or question, not a topic label. " +
         "Do not frame any culture's history as 'secrets only they knew' — frame discoveries as universal human mysteries. " +
         "Mark every factual claim so it can be traced back to a research citation for fact-checking. " +
-        "Visual pacing target: {{pacingGuidance}}. Within each beat, split the narration into multiple shots to hit " +
-        "that pace — a beat is a story unit, a shot is a single visual cut, and most beats should contain several " +
-        "shots, not one held for the whole beat. " +
+        "Visual pacing target: {{pacingGuidance}}. For each beat, plan the shots BEFORE writing any narration: " +
+        "decide how many shots the beat needs at 10-14 words each (~5-6 seconds at this channel's measured " +
+        "narration pace) — 18 words (~8 seconds) is an absolute ceiling, not a comfortable target — then compose " +
+        "each shot's own narration directly at that length. Do not write the beat as one flowing passage and " +
+        "split it into shots afterward, since that produces shots sized to sentences instead of to the pacing " +
+        "target. A beat is a story unit, a shot is a single visual cut, and most beats need 3+ shots, not one " +
+        "held for the whole beat. Shot boundaries do NOT need to align with sentence boundaries — a long thought " +
+        "(20+ words) must be composed as two or three shots, each written at the target length, with the " +
+        "narration reading as one continuous line while the visual cuts partway through it. Never let 'this is " +
+        "one grammatical sentence' be the reason a shot runs long. " +
         "Target length: approximately {{targetWordCount}} words of spoken narration total (~{{targetLengthSec}} " +
-        "seconds at this channel's measured narration pace). Stay close to this across the whole script — for a " +
+        "seconds at this channel's measured narration pace). Stay close to this across the whole script. If you " +
+        "are running short of the target, close the gap by adding MORE shots per beat with more supporting " +
+        "detail, examples, and evidence — never by writing longer individual shots past the per-shot ceiling " +
+        "described above; shot length and total length are independent targets. For a " +
         "'short' this is a hard ceiling for YouTube Shorts feed eligibility, not a style preference, so do not add " +
         "extra beats, sentences, or padding to run longer than the target. For a 'short' specifically: budget " +
         "roughly {{targetWordCount}} words divided evenly across the beats above, keep each beat to 1-2 short " +
