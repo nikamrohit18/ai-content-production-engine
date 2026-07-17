@@ -28,4 +28,14 @@ Every other model call in this repo (`src/engine/ai/models.ts`) goes through the
 - **The Gemini Developer API's billing is NOT the same pool as Google Cloud's general trial/billing credit.** A Cloud Billing account (even an "activated," non-trial one) being linked to the project is necessary but not sufficient — the Gemini API additionally requires its own standalone "Prepay" credit ($10 minimum), bought at `aistudio.google.com/billing`, completely separate from any Cloud trial credit. Symptom if this is missed: `Quota exceeded ... free_tier_requests, limit: 0` (billing not linked/activated) or `Your prepayment credits are depleted` (billing fine, Prepay balance empty) — two different errors, two different fixes.
 - **Aspect ratio must be set via `providerOptions.google.imageConfig.aspectRatio`**, not prompt wording — asking for "16:9" in the prompt text is silently ignored and the model defaults to a 1024×1024 square. The provider option reliably produces the documented per-ratio resolution (e.g. 1344×768 for `16:9`).
 
-Run it with `npx tsx scripts/generate-scene-images.ts "<topic title or topicId>" [--out <dir>] [--force] [--scenes 1,3,5-10] [--delay <ms>]` (or `npm run generate:images -- ...`). It's a fully standalone, optional CLI — reads scenes from the DB, writes PNGs straight to a local folder (default `generated-images/<topic-slug>/`, gitignored), and never writes anything back to the database. Skips scenes whose file already exists unless `--force`.
+Run it with `npx tsx scripts/generate-scene-images.ts "<topic title or topicId>" [--out <dir>] [--force] [--scenes 1,3,5-10] [--delay <ms>]` (or `npm run generate:images -- ...`) from the repo root, in any terminal. It's a fully standalone, optional CLI — reads scenes from the DB, writes PNGs straight to a local folder (default `generated-images/<topic-slug>/`, gitignored), and never writes anything back to the database. Skips scenes whose file already exists unless `--force`, so it's always safe to just rerun the same command after an interruption.
+
+`--scenes` takes a comma-separated list of scene numbers and/or `start-end` ranges (e.g. `--scenes 5,12,30-35`) — use it to generate in reviewable batches instead of all N scenes in one run, e.g. for a 100-scene script:
+```
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 1-20
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 21-40
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 41-60
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 61-80
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 81-100
+```
+Redo one bad scene with `--scenes 47 --force`.
