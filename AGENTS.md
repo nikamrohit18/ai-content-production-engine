@@ -38,4 +38,14 @@ npx tsx scripts/generate-scene-images.ts "<title>" --scenes 41-60
 npx tsx scripts/generate-scene-images.ts "<title>" --scenes 61-80
 npx tsx scripts/generate-scene-images.ts "<title>" --scenes 81-100
 ```
-Redo one bad scene with `--scenes 47 --force`.
+**Redo a scene you don't like:** `--force` overrides the default skip-if-exists behavior. Combine it with `--scenes` so only that one scene gets regenerated instead of redoing everything:
+```
+npx tsx scripts/generate-scene-images.ts "<title>" --scenes 47 --force
+```
+Without `--scenes`, `--force` regenerates and overwrites every scene in range (or all of them), so scope it narrowly for a single redo.
+
+**Save outside the repo folder:** `--out` accepts any absolute path, not just a subfolder of the project — useful for saving straight into wherever the video is actually being edited (e.g. a project folder on another drive). The directory is created automatically if it doesn't exist. Quote the path if it contains spaces:
+```
+npx tsx scripts/generate-scene-images.ts "<title>" --out "D:\Videos\Roman Technology\images"
+```
+This only changes where files are written — DB reads and scene numbering stay the same either way.
