@@ -1,11 +1,7 @@
-import Link from "next/link";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RunPipelineButton } from "./backlog-actions";
+import { deriveShots } from "@/engine/ai/script";
+import { BacklogTable, type BacklogRow } from "./backlog-table";
 
 function formatDuration(totalSec: number): string {
   const sec = Math.round(totalSec);
@@ -13,20 +9,6 @@ function formatDuration(totalSec: number): string {
   const seconds = sec % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  backlog: "outline",
-  researching: "secondary",
-  scripting: "secondary",
-  factchecking: "secondary",
-  awaiting_review: "default",
-  approved: "secondary",
-  rejected: "destructive",
-  failed: "destructive",
-  in_production: "secondary",
-  published: "secondary",
-  archived: "outline",
-};
 
 // A script (and usually sourced assets/voiceover) exists for any topic past
 // these earlier in-flight statuses — that's when a production package is
@@ -43,14 +25,9 @@ const HAS_SCRIPT_STATUSES = new Set([
 export default async function BacklogPage() {
   const db = getDb();
   const topics = await db.query.topics.findMany({
-    orderBy: (t, { desc }) => [desc(t.createdAt)],
+    orderBy: (t, { desc }) => [desc(t.updatedAt)],
     limit: 200,
   });
-
-  const counts = topics.reduce<Record<string, number>>((acc, t) => {
-    acc[t.status] = (acc[t.status] ?? 0) + 1;
-    return acc;
-  }, {});
 
   const topicIds = topics.map((t) => t.id);
   const [videoRows, scriptRows, nicheTemplateRows] = topicIds.length
@@ -107,78 +84,35 @@ export default async function BacklogPage() {
     return targetSec ? `${formatDuration(targetSec)} target` : "—";
   }
 
+  const rows: BacklogRow[] = topics.map((topic) => {
+    const script = latestScriptByTopic.get(topic.id);
+    return {
+      id: topic.id,
+      titleWorking: topic.titleWorking,
+      format: topic.format,
+      status: topic.status,
+      sceneCount: script ? deriveShots(script.beatStructure).length : null,
+      lengthLabel: lengthLabel(topic),
+      source: topic.source,
+      createdAt: topic.createdAt,
+      updatedAt: topic.updatedAt,
+      youtubeUrl: topic.youtubeUrl,
+      canRunPipeline: topic.status === "backlog" || topic.status === "failed",
+      hasScript: HAS_SCRIPT_STATUSES.has(topic.status),
+    };
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Backlog</h1>
         <p className="text-muted-foreground text-sm">
-          Every topic in the pipeline, newest first. Topics still in &ldquo;backlog&rdquo; haven&rsquo;t been picked
-          up yet — run the pipeline manually below, or wait for the daily refill cron.
+          Every topic in the pipeline, most recently updated first. Topics still in &ldquo;backlog&rdquo; haven&rsquo;t
+          been picked up yet — run the pipeline manually below, or wait for the daily refill cron.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(counts).map(([status, count]) => (
-          <Badge key={status} variant={STATUS_VARIANT[status] ?? "outline"}>
-            {status.replace(/_/g, " ")}: {count}
-          </Badge>
-        ))}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Format</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Length</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {topics.map((topic) => (
-                <TableRow key={topic.id}>
-                  <TableCell className="max-w-md truncate font-medium">{topic.titleWorking}</TableCell>
-                  <TableCell className="capitalize">{topic.format}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[topic.status] ?? "outline"}>
-                      {topic.status.replace(/_/g, " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{lengthLabel(topic)}</TableCell>
-                  <TableCell className="text-muted-foreground capitalize">
-                    {topic.source.replace(/_/g, " ")}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {topic.createdAt.toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {(topic.status === "backlog" || topic.status === "failed") && (
-                      <RunPipelineButton topicId={topic.id} topicTitle={topic.titleWorking} />
-                    )}
-                    {HAS_SCRIPT_STATUSES.has(topic.status) && (
-                      <Link href={`/production/${topic.id}`} className={buttonVariants({ size: "sm", variant: "outline" })}>
-                        View package
-                      </Link>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {topics.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-muted-foreground py-10 text-center">
-                    No topics yet. Seed the backlog or wait for trend sourcing to add some.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <BacklogTable rows={rows} />
     </div>
   );
 }

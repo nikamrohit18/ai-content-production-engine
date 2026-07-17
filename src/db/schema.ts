@@ -189,6 +189,8 @@ export const topics = pgTable("topics", {
   source: topicSourceEnum("source").notNull().default("manual"),
   targetPublishDate: timestamp("target_publish_date", { withTimezone: true }),
   notes: text("notes"),
+  youtubeUrl: text("youtube_url"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
   index("topics_channel_status_idx").on(t.channelId, t.status),

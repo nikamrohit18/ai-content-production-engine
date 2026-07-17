@@ -2,9 +2,10 @@ import Link from "next/link";
 import { getDb } from "@/db";
 import { buildProductionPackage } from "@/engine/production/productionPackage";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CopyButton } from "./copy-button";
+import { DownloadPromptsButton } from "./download-prompts-button";
 
 const TOOL_RECOMMENDATIONS = [
   {
@@ -56,7 +57,7 @@ export default async function ProductionPackagePage({ params }: { params: Promis
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{pkg.titleWorking}</h1>
         <p className="text-muted-foreground text-sm">
           Production package · <Badge variant="outline">{pkg.format}</Badge> ·{" "}
-          {pkg.dimensions.width}×{pkg.dimensions.height}
+          {pkg.dimensions.width}×{pkg.dimensions.height} · {pkg.shots.length} scenes
         </p>
       </div>
 
@@ -123,6 +124,9 @@ export default async function ProductionPackagePage({ params }: { params: Promis
             Apply a slow zoom in/out for that whole window; alternating direction shot-to-shot reads better than
             zooming the same way every time.
           </CardDescription>
+          <CardAction>
+            <DownloadPromptsButton titleWorking={pkg.titleWorking} shots={pkg.shots} />
+          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {pkg.shots.map((shot, i) => (
@@ -151,11 +155,14 @@ export default async function ProductionPackagePage({ params }: { params: Promis
                 )}
                 <div className="flex flex-1 flex-col gap-2">
                   <div className="flex items-center justify-between">
-                    {shot.startSec != null && shot.onScreenUntilSec != null && (
-                      <Badge variant="secondary">
-                        {formatDuration(shot.startSec)} – {formatDuration(shot.onScreenUntilSec)}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">Scene {i + 1}</Badge>
+                      {shot.startSec != null && shot.onScreenUntilSec != null && (
+                        <Badge variant="secondary">
+                          {formatDuration(shot.startSec)} – {formatDuration(shot.onScreenUntilSec)}
+                        </Badge>
+                      )}
+                    </div>
                     {shot.referenceImageLicense && (
                       <span className="text-muted-foreground text-xs">reference license: {shot.referenceImageLicense}</span>
                     )}

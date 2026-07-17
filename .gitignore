@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# locally generated scene images (scripts/generate-scene-images.ts)
+/generated-images/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
