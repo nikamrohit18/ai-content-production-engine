@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { start } from "workflow/api";
 import { revalidatePath } from "next/cache";
 import { getDb, schema } from "@/db";
-import { runTopicPipeline } from "@/workflows/topic-pipeline";
 import { requireAuth } from "@/lib/require-auth";
 
 export async function triggerPipeline(topicId: string): Promise<void> {
@@ -17,6 +16,11 @@ export async function triggerPipeline(topicId: string): Promise<void> {
     throw new Error(`Topic is already in status '${topic.status}'`);
   }
 
+  // Lazy import: keeps the workflow module graph (AI SDK, workflow core, all step files) out of
+  // /backlog's own compile. A top-level import here forced Turbopack to re-bundle the entire
+  // workflow graph as part of rendering the plain topics list, which was blocking the event loop
+  // long enough (10-20s+) to break the page's own DB queries.
+  const { runTopicPipeline } = await import("@/workflows/topic-pipeline");
   await start(runTopicPipeline, [topicId, topic.channelId]);
   revalidatePath("/backlog");
 }
