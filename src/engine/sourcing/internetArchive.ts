@@ -23,6 +23,7 @@ export type InternetArchiveImageCandidate = {
   fileUrl: string;
   pageUrl: string;
   license: string;
+  artist: string | null;
   width: number;
   height: number;
   mimeType: string;
@@ -34,7 +35,7 @@ type IASearchResponse = {
 
 type IAMetadataResponse = {
   files?: Array<{ name: string; source?: string; size?: string }>;
-  metadata?: { licenseurl?: string };
+  metadata?: { licenseurl?: string; creator?: string | string[] };
 };
 
 function sleep(ms: number) {
@@ -87,12 +88,14 @@ export async function searchInternetArchiveImages(query: string, limit = 5): Pro
     if (!usableFile) continue;
 
     const extension = usableFile.name.split(".").pop()!.toLowerCase();
+    const creator = metaData.metadata?.creator;
 
     candidates.push({
       title: doc.title ?? doc.identifier,
       fileUrl: `https://archive.org/download/${doc.identifier}/${encodeURIComponent(usableFile.name)}`,
       pageUrl: `https://archive.org/details/${doc.identifier}`,
       license: doc.licenseurl ?? metaData.metadata?.licenseurl ?? "unknown",
+      artist: Array.isArray(creator) ? creator.join(", ") || null : (creator ?? null),
       width: 0,
       height: 0,
       mimeType: EXTENSION_MIME[extension],

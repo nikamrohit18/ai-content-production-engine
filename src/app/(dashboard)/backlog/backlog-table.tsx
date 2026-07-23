@@ -47,6 +47,12 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   archived: "outline",
 };
 
+const SOURCE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  trend_signal: "secondary",
+  manual: "outline",
+  ai_suggested: "default",
+};
+
 const TAB_STATUSES: Record<string, Set<string>> = {
   backlog: new Set(["backlog", "researching", "scripting", "factchecking", "awaiting_review", "approved", "rejected", "failed"]),
   production: new Set(["in_production"]),
@@ -176,7 +182,9 @@ export function BacklogTable({ rows }: { rows: BacklogRow[] }) {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{row.sceneCount ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{row.lengthLabel}</TableCell>
-                  <TableCell className="text-muted-foreground capitalize">{row.source.replace(/_/g, " ")}</TableCell>
+                  <TableCell>
+                    <Badge variant={SOURCE_VARIANT[row.source] ?? "outline"}>{row.source.replace(/_/g, " ")}</Badge>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{formatRelativeTime(row.updatedAt)}</TableCell>
                   <TableCell>
                     {row.youtubeUrl ? (

@@ -35,9 +35,13 @@ export async function draftResearchBrief(topicId: string): Promise<ResearchDraft
   });
   if (!nicheTemplate) throw new Error(`Niche template ${topic.nicheTemplateId} not found for topic ${topicId}`);
 
-  const prompt = renderTemplate(nicheTemplate.researchPromptTemplate, {
+  const basePrompt = renderTemplate(nicheTemplate.researchPromptTemplate, {
     topicTitle: topic.titleWorking,
   });
+  // topic.notes carries either a trend-sourced blurb or (for manually-entered
+  // topics) the distilled hook/outline/brief from analyzeManualTopicSubmission —
+  // appending it gives research a head start instead of starting from the title alone.
+  const prompt = topic.notes ? `${basePrompt}\n\nAdditional context provided with this topic:\n${topic.notes}` : basePrompt;
 
   const result = await generateText({
     model: RESEARCH_MODEL,

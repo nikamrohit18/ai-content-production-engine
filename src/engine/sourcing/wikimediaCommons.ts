@@ -22,10 +22,16 @@ export type CommonsImageCandidate = {
   fileUrl: string;
   pageUrl: string;
   license: string;
+  artist: string | null;
   width: number;
   height: number;
   mimeType: string;
 };
+
+/** Commons' Artist/Credit extmetadata values are HTML (often a link to the uploader's user page) — strip tags for a plain-text credit line. */
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]+>/g, "").trim();
+}
 
 type CommonsSearchResponse = { query?: { search?: Array<{ title: string }> } };
 
@@ -41,7 +47,11 @@ type CommonsImageInfoResponse = {
           width: number;
           height: number;
           mime: string;
-          extmetadata?: { LicenseShortName?: { value: string } };
+          extmetadata?: {
+            LicenseShortName?: { value: string };
+            Artist?: { value: string };
+            Credit?: { value: string };
+          };
         }>;
       }
     >;
@@ -91,11 +101,13 @@ export async function searchCommonsImages(query: string, limit = 5): Promise<Com
     })
     .map((p) => {
       const info = p.imageinfo![0];
+      const rawArtist = info.extmetadata?.Artist?.value ?? info.extmetadata?.Credit?.value;
       return {
         title: p.title,
         fileUrl: info.url,
         pageUrl: info.descriptionurl,
         license: info.extmetadata?.LicenseShortName?.value ?? "unknown",
+        artist: rawArtist ? stripHtml(rawArtist) || null : null,
         width: info.width,
         height: info.height,
         mimeType: info.mime,

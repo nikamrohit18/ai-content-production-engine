@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { ReviewActions } from "./review-actions";
+import { AmendScriptDialog } from "./amend-script-dialog";
+import { LinkCheckPanel } from "./link-check-panel";
 
 const VERDICT_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   supported: "secondary",
@@ -97,7 +99,10 @@ export default async function ReviewPage() {
                 <TabsContent value="script" className="space-y-4">
                   {script ? (
                     <>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{script.fullNarrationText}</p>
+                      <div className="flex items-start justify-between gap-4">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{script.fullNarrationText}</p>
+                        <AmendScriptDialog scriptId={script.id} topicId={topic.id} />
+                      </div>
                       <Separator />
                       <div className="space-y-2">
                         {script.beatStructure.map((beat, i) => (
@@ -181,6 +186,15 @@ export default async function ReviewPage() {
                   ))}
                 </TabsContent>
               </Tabs>
+              <LinkCheckPanel
+                topicId={topic.id}
+                links={[
+                  ...(brief?.sources ?? []).map((s) => ({ sourceName: s.sourceName, sourceUrl: s.sourceUrl })),
+                  ...factChecks.flatMap((fc) =>
+                    (fc.citations ?? []).map((c) => ({ sourceName: c.sourceName, sourceUrl: c.sourceUrl })),
+                  ),
+                ]}
+              />
             </CardContent>
             <CardFooter className="justify-end">
               {script && <ReviewActions topicId={topic.id} scriptId={script.id} topicTitle={topic.titleWorking} />}

@@ -2,6 +2,7 @@ import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { deriveShots } from "@/engine/ai/script";
 import { BacklogTable, type BacklogRow } from "./backlog-table";
+import { NewTopicDialog } from "./new-topic-dialog";
 
 function formatDuration(totalSec: number): string {
   const sec = Math.round(totalSec);
@@ -24,10 +25,16 @@ const HAS_SCRIPT_STATUSES = new Set([
 
 export default async function BacklogPage() {
   const db = getDb();
-  const topics = await db.query.topics.findMany({
-    orderBy: (t, { desc }) => [desc(t.updatedAt)],
-    limit: 200,
-  });
+  const [topics, channels] = await Promise.all([
+    db.query.topics.findMany({
+      orderBy: (t, { desc }) => [desc(t.updatedAt)],
+      limit: 200,
+    }),
+    db.query.channels.findMany({
+      where: (c, { eq }) => eq(c.isActive, true),
+      orderBy: (c, { asc }) => [asc(c.displayName)],
+    }),
+  ]);
 
   const topicIds = topics.map((t) => t.id);
   const [videoRows, scriptRows, nicheTemplateRows] = topicIds.length
@@ -104,12 +111,15 @@ export default async function BacklogPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Backlog</h1>
-        <p className="text-muted-foreground text-sm">
-          Every topic in the pipeline, most recently updated first. Topics still in &ldquo;backlog&rdquo; haven&rsquo;t
-          been picked up yet — run the pipeline manually below, or wait for the daily refill cron.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Backlog</h1>
+          <p className="text-muted-foreground text-sm">
+            Every topic in the pipeline, most recently updated first. Topics still in &ldquo;backlog&rdquo; haven&rsquo;t
+            been picked up yet — run the pipeline manually below, or wait for the daily refill cron.
+          </p>
+        </div>
+        <NewTopicDialog channels={channels.map((c) => ({ id: c.id, displayName: c.displayName }))} />
       </div>
 
       <BacklogTable rows={rows} />

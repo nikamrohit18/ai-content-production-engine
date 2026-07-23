@@ -122,6 +122,7 @@ export async function sourceImagesForScript(scriptId: string): Promise<SourceIma
         searchQuery: query,
         width: candidate.width,
         height: candidate.height,
+        artist: candidate.artist,
       },
     });
     assetsCreated += 1;

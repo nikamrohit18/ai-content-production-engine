@@ -228,7 +228,8 @@ export default async function ProductionPackagePage({ params }: { params: Promis
             {pkg.seo.hashtags
               ? `${pkg.seo.hashtags.length} hashtags · `
               : ""}
-            {pkg.sources.uniqueSourceCount} sources · {pkg.sources.flaggedClaimsCount} claims flagged for review.
+            {pkg.sources.uniqueSourceCount} sources · {pkg.sources.imageCreditCount} image credits ·{" "}
+            {pkg.sources.flaggedClaimsCount} claims flagged for review.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
